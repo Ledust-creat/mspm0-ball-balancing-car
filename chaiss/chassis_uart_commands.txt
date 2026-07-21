@@ -1,0 +1,45 @@
+MSPM0G3507 chassis UART/Bluetooth protocol
+==========================================
+
+Phone/App -> MCU uses binary frames only.
+MCU -> Phone/App sends:
+  1. binary error frame for graph display
+  2. text status line ending with "\r\n" for parameter confirmation
+
+Binary frame
+------------
+A5 CMD DATA0 DATA1 DATA2 DATA3 CHECK 5A
+
+DATA is float little-endian.
+CHECK = CMD + DATA0 + DATA1 + DATA2 + DATA3, low 8 bits.
+
+Control commands
+----------------
+0x01 START
+0x02 STOP
+0x03 SET_BASE_PWM
+0x04 SET_KP
+0x05 SET_KI
+0x06 SET_KD
+0x07 SET_LEFT_RATIO
+0x08 SET_RIGHT_RATIO
+0x09 QUERY_STATUS
+
+Status frames
+-------------
+0x80 ACK, data = original command
+0x82 TRACE_ERROR, data = error_f, used by phone graph display
+0x83 TURN_PWM
+0x84 BASE_PWM
+0x85 KP
+0x86 KD
+0x87 RUN
+0xE0 ERROR
+
+Text telemetry
+--------------
+After each valid control frame and every 200 ms, MCU sends one readable line:
+
+STAT,base=300.00,kp=35.00,ki=0.00,kd=0.00,err=0.00,turn=0.00,lr=1.00,rr=0.91,run=0\r\n
+
+This text line is only for display/confirmation. It is not parsed as a control command.

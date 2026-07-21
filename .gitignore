@@ -1,0 +1,29 @@
+# Keil / uVision build outputs
+**/Objects/
+**/Listings/
+**/*.o
+**/*.d
+**/*.axf
+**/*.hex
+**/*.map
+**/*.htm
+**/*.lnp
+**/*.dep
+**/*.iex
+
+# Keil user/session files
+**/*.uvguix.*
+**/*.uvoptx
+**/JLinkLog.txt
+**/JLinkSettings.ini
+
+# Editor files
+**/.vscode/
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# Generated/example documentation not required for chassis build
+**/README.html
+**/Event.dot

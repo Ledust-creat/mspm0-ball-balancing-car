@@ -11,6 +11,13 @@ extern "C" {
 
 /*
 *********************************************************************************************************
+*   宏定义
+*********************************************************************************************************
+*/
+#define DVE_CHASSIS_SPEED_MAX_CM_S          (80.0f)     /* 目标轮速限幅 */
+
+/*
+*********************************************************************************************************
 *   类型定义
 *********************************************************************************************************
 */
@@ -49,7 +56,7 @@ void DVE_Chassis_SetPwmRatio(float left_ratio, float right_ratio);
 DVE_ChassisStatus_t DVE_Chassis_SetPwm(int16_t left_pwm, int16_t right_pwm);
 DVE_ChassisStatus_t DVE_Chassis_SetTracePwm(float base_pwm, float turn_pwm);
 
-void DVE_Chassis_SetSpeedPid(float kp, float ki, float kd);
+
 void DVE_Chassis_SetLeftSpeedPid(float kp, float ki, float kd);
 void DVE_Chassis_SetRightSpeedPid(float kp, float ki, float kd);
 void DVE_Chassis_SetSpeedTargetCmps(float left_cm_s, float right_cm_s);

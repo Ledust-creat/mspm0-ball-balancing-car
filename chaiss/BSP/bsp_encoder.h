@@ -23,7 +23,7 @@ extern "C" {
 #define BSP_ENCODER_A_PHASE_B_PIN          EncoderA_E1B_PIN
 #define BSP_ENCODER_A_PHASE_B_IOMUX        EncoderA_E1B_IOMUX
 #else
-#define BSP_ENCODER_A_PORT                 GPIOB       /* 电机A编码器GPIO端口 */
+#define BSP_ENCODER_A_PORT                 GPIOB
 #define BSP_ENCODER_A_PHASE_A_PIN          DL_GPIO_PIN_6
 #define BSP_ENCODER_A_PHASE_A_IOMUX        IOMUX_PINCM23
 #define BSP_ENCODER_A_PHASE_B_PIN          DL_GPIO_PIN_7
@@ -37,7 +37,7 @@ extern "C" {
 #define BSP_ENCODER_B_PHASE_B_PIN          EncoderB_E2B_PIN
 #define BSP_ENCODER_B_PHASE_B_IOMUX        EncoderB_E2B_IOMUX
 #else
-#define BSP_ENCODER_B_PORT                 GPIOB       /* 电机B编码器GPIO端口 */
+#define BSP_ENCODER_B_PORT                 GPIOB
 #define BSP_ENCODER_B_PHASE_A_PIN          DL_GPIO_PIN_8
 #define BSP_ENCODER_B_PHASE_A_IOMUX        IOMUX_PINCM25
 #define BSP_ENCODER_B_PHASE_B_PIN          DL_GPIO_PIN_9
@@ -53,8 +53,8 @@ extern "C" {
 #define BSP_ENCODER_GPIO_INT_IRQN          GPIOB_INT_IRQn
 #endif
 
-#define BSP_ENCODER_A_SIGN                 (-1)         /* 电机A编码器方向修正，取1或-1 */
-#define BSP_ENCODER_B_SIGN                 (1)         /* 电机B编码器方向修正，取1或-1 */
+#define BSP_ENCODER_A_SIGN                 (-1)        /* 电机A编码器方向修正，可为1或-1 */
+#define BSP_ENCODER_B_SIGN                 (1)         /* 电机B编码器方向修正，可为1或-1 */
 
 #define BSP_ENCODER_A_INT_PINS             (BSP_ENCODER_A_PHASE_A_PIN)
 #define BSP_ENCODER_B_INT_PINS             (BSP_ENCODER_B_PHASE_A_PIN)
@@ -67,8 +67,7 @@ extern "C" {
 */
 typedef struct
 {
-    int32_t pulse_count;                   /* 周期内原始计数，二倍频计数值 */
-    int32_t real_pulse;                    /* 换算后的编码器物理脉冲 */
+    int32_t sample_count;                  /* 本测速周期内二倍频有符号计数 */
     uint8_t direction;                     /* 0正转，1反转 */
     float speed_cm_s;                      /* 轮速，单位cm/s */
 } EncoderData_t;

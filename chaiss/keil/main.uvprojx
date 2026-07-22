@@ -498,14 +498,24 @@
               <FilePath>..\app\app_command.h</FilePath>
             </File>
             <File>
-              <FileName>app_trace.c</FileName>
+              <FileName>app_line_follow.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\app\app_trace.c</FilePath>
+              <FilePath>..\app\app_line_follow.c</FilePath>
             </File>
             <File>
-              <FileName>app_trace.h</FileName>
+              <FileName>app_line_follow.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\app\app_trace.h</FilePath>
+              <FilePath>..\app\app_line_follow.h</FilePath>
+            </File>
+            <File>
+              <FileName>app_chassis_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\app_chassis_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_chassis_control.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\app_chassis_control.h</FilePath>
             </File>
           </Files>
         </Group>

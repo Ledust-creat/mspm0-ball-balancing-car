@@ -9,7 +9,8 @@
 #include "bsp_bluetooth.h"
 #include "dve_chassis.h"
 #include "dve_ir_sensor.h"
-#include "app_trace.h"
+#include "app_line_follow.h"
+#include "app_chassis_control.h"
 #include "app_command.h"
 
 #endif /* TOTAL_H_ */

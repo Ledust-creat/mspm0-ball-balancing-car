@@ -1,5 +1,6 @@
-﻿#include "app_command.h"
-#include "app_trace.h"
+#include "app_command.h"
+#include "app_chassis_control.h"
+#include "app_line_follow.h"
 #include "bsp_bluetooth.h"
 #include "dve_chassis.h"
 #include "interrupt.h"
@@ -12,34 +13,32 @@
 
 /*
 *********************************************************************************************************
-*   鍏ㄥ眬鍙橀噺
+*   全局变量
 *********************************************************************************************************
 */
-static uint8_t s_cmd_rx_buf[APP_CMD_PACKET_LEN];        /* 鍗忚鎺ユ敹缂撳瓨 */
-static uint8_t s_cmd_rx_index = 0U;                     /* 褰撳墠鎺ユ敹浣嶇疆 */
-static bool s_cmd_receiving = false;                    /* 鍗忚鎺ユ敹鐘舵€?*/
+static uint8_t s_cmd_rx_buf[APP_CMD_PACKET_LEN];        /* 协议接收缓存 */
+static uint8_t s_cmd_rx_index = 0U;                     /* 当前接收位置 */
+static bool s_cmd_receiving = false;                    /* 协议接收状态 */
 
-static char s_text_tx_buf[240];                         /* 鏂囨湰鐘舵€佸洖浼犵紦瀛?*/
-static uint32_t s_last_wave_ms = 0U;                    /* 涓婁竴娆℃尝褰㈠洖浼犳椂闂?*/
-static uint32_t s_last_text_ms = 0U;                    /* 涓婁竴娆℃枃鏈洖浼犳椂闂?*/
-static float s_cmd_left_target_cm_s = 15.0f;            /* 宸﹁疆娴嬭瘯鐩爣閫熷害 */
-static float s_cmd_right_target_cm_s = 15.0f;           /* 鍙宠疆娴嬭瘯鐩爣閫熷害 */
+static char s_text_tx_buf[240];                         /* 文本状态回传缓存 */
+static uint32_t s_last_wave_ms = 0U;                    /* 上一次波形回传时间 */
+static uint32_t s_last_text_ms = 0U;                    /* 上一次文本回传时间 */
 
 /*
 *********************************************************************************************************
-*   鍑芥暟澹版槑
+*   函数声明
 *********************************************************************************************************
 */
 static uint8_t Command_CalcCheckSum(uint8_t *buf);
 static void Command_SendAck(uint8_t cmd);
 static void Command_SendError(float err_code);
 static void Command_FeedByte(uint8_t data);
-static void command_set_tuned_kp(float value);
-static void command_set_tuned_ki(float value);
-static void command_set_tuned_kd(float value);
-static float command_get_tuned_kp(void);
-static float command_get_tuned_ki(void);
-static float command_get_tuned_kd(void);
+static void command_set_line_kp(float value);
+static void command_set_line_ki(float value);
+static void command_set_line_kd(float value);
+static float command_get_line_kp(void);
+static float command_get_line_ki(void);
+static float command_get_line_kd(void);
 static void send_wave_status(void);
 static void send_text_status(void);
 static char *append_str(char *dst, const char *src);
@@ -48,8 +47,11 @@ static char *append_f2(char *dst, float value);
 
 /*
 *********************************************************************************************************
-*   鍑?鏁?鍚? Command_CalcCheckSum
-*   鍔熻兘璇存槑: 璁＄畻8瀛楄妭鍗忚鏍￠獙鍜?*   褰?   鍙? buf 鈥?鍗忚鍖呯紦瀛?*   杩?鍥?鍊? 鏍￠獙鍜?*********************************************************************************************************
+*   函 数 名: Command_CalcCheckSum
+*   功能说明: 计算8字节协议校验和
+*   形    参: buf — 协议包缓存
+*   返 回 值: 校验和
+*********************************************************************************************************
 */
 static uint8_t Command_CalcCheckSum(uint8_t *buf)
 {
@@ -58,9 +60,11 @@ static uint8_t Command_CalcCheckSum(uint8_t *buf)
 
 /*
 *********************************************************************************************************
-*   鍑?鏁?鍚? Command_PackAndSend
-*   鍔熻兘璇存槑: 鎸夊浐瀹氬崗璁粍鍖呭苟閫氳繃钃濈墮鍙戦€?*   褰?   鍙? cmd 鈥?鍛戒护瀛楋紱data 鈥?娴偣鏁版嵁
-*   杩?鍥?鍊? 鏃?*********************************************************************************************************
+*   函 数 名: Command_PackAndSend
+*   功能说明: 按固定协议组包并通过蓝牙发送
+*   形    参: cmd — 命令字；data — 浮点数据
+*   返 回 值: 无
+*********************************************************************************************************
 */
 void Command_PackAndSend(uint8_t cmd, float data)
 {
@@ -75,6 +79,14 @@ void Command_PackAndSend(uint8_t cmd, float data)
     Bluetooth_SendData(tx_buf, APP_CMD_PACKET_LEN);
 }
 
+/*
+*********************************************************************************************************
+*   函 数 名: Command_SendAck
+*   功能说明: 发送ACK帧，默认关闭
+*   形    参: cmd — 原命令字
+*   返 回 值: 无
+*********************************************************************************************************
+*/
 static void Command_SendAck(uint8_t cmd)
 {
 #if (APP_CMD_ENABLE_ACK_FRAME != 0U)
@@ -84,6 +96,14 @@ static void Command_SendAck(uint8_t cmd)
 #endif
 }
 
+/*
+*********************************************************************************************************
+*   函 数 名: Command_SendError
+*   功能说明: 发送错误帧，默认关闭
+*   形    参: err_code — 错误码
+*   返 回 值: 无
+*********************************************************************************************************
+*/
 static void Command_SendError(float err_code)
 {
 #if (APP_CMD_ENABLE_ERR_FRAME != 0U)
@@ -95,30 +115,28 @@ static void Command_SendError(float err_code)
 
 /*
 *********************************************************************************************************
-*   鍑?鏁?鍚? Command_SendStatus
-*   鍔熻兘璇存槑: 鎸夊崗璁抚鍥炰紶鍏抽敭鐘舵€侊紝鍋忓樊甯х敤浜庢墜鏈哄浘鍍忔樉绀?*   褰?   鍙? 鏃?*   杩?鍥?鍊? 鏃?*********************************************************************************************************
+*   函 数 名: Command_SendStatus
+*   功能说明: 按协议帧回传关键状态
+*   形    参: 无
+*   返 回 值: 无
+*********************************************************************************************************
 */
 void Command_SendStatus(void)
 {
     DVE_ChassisState_t chassis_state;
-    APP_TraceState_t trace_state;
+    APP_ChassisControlState_t control_state;
+    APP_LineFollowState_t line_state;
 
     DVE_Chassis_GetState(&chassis_state);
-    APP_Trace_GetState(&trace_state);
+    APP_ChassisControl_GetState(&control_state);
+    APP_LineFollow_GetState(&line_state);
 
-    Command_PackAndSend(CMD_STATUS_ERROR, trace_state.last_error);
-
-#if (APP_TRACE_CONTROL_MODE == APP_TRACE_MODE_SPEED_LOOP)
-    Command_PackAndSend(CMD_STATUS_TURN, trace_state.last_turn_speed);
-    Command_PackAndSend(CMD_STATUS_BASE, trace_state.base_speed_cm_s);
-#else
-    Command_PackAndSend(CMD_STATUS_TURN, trace_state.last_turn_pwm);
-    Command_PackAndSend(CMD_STATUS_BASE, trace_state.base_pwm);
-#endif
-
-    Command_PackAndSend(CMD_STATUS_KP, command_get_tuned_kp());
-    Command_PackAndSend(CMD_STATUS_KD, command_get_tuned_kd());
-    Command_PackAndSend(CMD_STATUS_RUN, trace_state.is_running ? 1.0f : 0.0f);
+    Command_PackAndSend(CMD_STATUS_ERROR, line_state.line_error);
+    Command_PackAndSend(CMD_STATUS_TURN, control_state.steering_correction_cm_s);
+    Command_PackAndSend(CMD_STATUS_BASE, control_state.base_speed_cm_s);
+    Command_PackAndSend(CMD_STATUS_KP, line_state.line_pid.Kp);
+    Command_PackAndSend(CMD_STATUS_KD, line_state.line_pid.Kd);
+    Command_PackAndSend(CMD_STATUS_RUN, control_state.is_running ? 1.0f : 0.0f);
     Command_PackAndSend(CMD_STATUS_LEFT_SPEED, chassis_state.left_actual_cm_s);
     Command_PackAndSend(CMD_STATUS_RIGHT_SPEED, chassis_state.right_actual_cm_s);
     Command_PackAndSend(CMD_STATUS_LEFT_PWM, chassis_state.left_pwm_out);
@@ -127,112 +145,67 @@ void Command_SendStatus(void)
 
 /*
 *********************************************************************************************************
-*   鍑?鏁?鍚? command_set_tuned_kp
-*   鍔熻兘璇存槑: 璁剧疆褰撳墠瀹忛€夋嫨璋冨弬鐜殑Kp
-*   褰?   鍙? value 鈥?Kp鍙傛暟
-*   杩?鍥?鍊? 鏃?*********************************************************************************************************
+*   函 数 名: command_set_line_kp
+*   功能说明: 设置循迹外环Kp
+*   形    参: value — Kp参数
+*   返 回 值: 无
+*********************************************************************************************************
 */
-static void command_set_tuned_kp(float value)
+static void command_set_line_kp(float value)
 {
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_SPEED)
-    PID_t left_pid;
-    PID_t right_pid;
+    APP_LineFollowState_t line_state;
 
-    DVE_Chassis_GetSpeedPid(&left_pid, &right_pid);
-    DVE_Chassis_SetLeftSpeedPid(value, left_pid.Ki, left_pid.Kd);
-    DVE_Chassis_SetRightSpeedPid(value, right_pid.Ki, right_pid.Kd);
-#else
-    APP_TraceState_t trace_state;
-
-    APP_Trace_GetState(&trace_state);
-    APP_Trace_SetPid(value, trace_state.trace_pid.Ki, trace_state.trace_pid.Kd);
-#endif
+    APP_LineFollow_GetState(&line_state);
+    APP_LineFollow_SetPid(value, line_state.line_pid.Ki, line_state.line_pid.Kd);
 }
 
-static void command_set_tuned_ki(float value)
+static void command_set_line_ki(float value)
 {
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_SPEED)
-    PID_t left_pid;
-    PID_t right_pid;
+    APP_LineFollowState_t line_state;
 
-    DVE_Chassis_GetSpeedPid(&left_pid, &right_pid);
-    DVE_Chassis_SetLeftSpeedPid(left_pid.Kp, value, left_pid.Kd);
-    DVE_Chassis_SetRightSpeedPid(right_pid.Kp, value, right_pid.Kd);
-#else
-    APP_TraceState_t trace_state;
-
-    APP_Trace_GetState(&trace_state);
-    APP_Trace_SetPid(trace_state.trace_pid.Kp, value, trace_state.trace_pid.Kd);
-#endif
+    APP_LineFollow_GetState(&line_state);
+    APP_LineFollow_SetPid(line_state.line_pid.Kp, value, line_state.line_pid.Kd);
 }
 
-static void command_set_tuned_kd(float value)
+static void command_set_line_kd(float value)
 {
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_SPEED)
-    PID_t left_pid;
-    PID_t right_pid;
+    APP_LineFollowState_t line_state;
 
-    DVE_Chassis_GetSpeedPid(&left_pid, &right_pid);
-    DVE_Chassis_SetLeftSpeedPid(left_pid.Kp, left_pid.Ki, value);
-    DVE_Chassis_SetRightSpeedPid(right_pid.Kp, right_pid.Ki, value);
-#else
-    APP_TraceState_t trace_state;
-
-    APP_Trace_GetState(&trace_state);
-    APP_Trace_SetPid(trace_state.trace_pid.Kp, trace_state.trace_pid.Ki, value);
-#endif
+    APP_LineFollow_GetState(&line_state);
+    APP_LineFollow_SetPid(line_state.line_pid.Kp, line_state.line_pid.Ki, value);
 }
 
-static float command_get_tuned_kp(void)
+static float command_get_line_kp(void)
 {
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_SPEED)
-    PID_t right_pid;
+    APP_LineFollowState_t line_state;
 
-    DVE_Chassis_GetSpeedPid(0, &right_pid);
-    return right_pid.Kp;
-#else
-    APP_TraceState_t trace_state;
-
-    APP_Trace_GetState(&trace_state);
-    return trace_state.trace_pid.Kp;
-#endif
+    APP_LineFollow_GetState(&line_state);
+    return line_state.line_pid.Kp;
 }
 
-static float command_get_tuned_ki(void)
+static float command_get_line_ki(void)
 {
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_SPEED)
-    PID_t right_pid;
+    APP_LineFollowState_t line_state;
 
-    DVE_Chassis_GetSpeedPid(0, &right_pid);
-    return right_pid.Ki;
-#else
-    APP_TraceState_t trace_state;
-
-    APP_Trace_GetState(&trace_state);
-    return trace_state.trace_pid.Ki;
-#endif
+    APP_LineFollow_GetState(&line_state);
+    return line_state.line_pid.Ki;
 }
 
-static float command_get_tuned_kd(void)
+static float command_get_line_kd(void)
 {
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_SPEED)
-    PID_t right_pid;
+    APP_LineFollowState_t line_state;
 
-    DVE_Chassis_GetSpeedPid(0, &right_pid);
-    return right_pid.Kd;
-#else
-    APP_TraceState_t trace_state;
-
-    APP_Trace_GetState(&trace_state);
-    return trace_state.trace_pid.Kd;
-#endif
+    APP_LineFollow_GetState(&line_state);
+    return line_state.line_pid.Kd;
 }
 
 /*
 *********************************************************************************************************
-*   鍑?鏁?鍚? Command_Parse
-*   鍔熻兘璇存槑: 瑙ｆ瀽8瀛楄妭浜岃繘鍒跺崗璁寘骞舵墽琛屽懡浠?*   褰?   鍙? buf 鈥?鏁版嵁缂撳瓨锛沴en 鈥?鏁版嵁闀垮害
-*   杩?鍥?鍊? 鏃?*********************************************************************************************************
+*   函 数 名: Command_Parse
+*   功能说明: 解析8字节二进制协议包并执行命令
+*   形    参: buf — 数据缓存；len — 数据长度
+*   返 回 值: 无
+*********************************************************************************************************
 */
 void Command_Parse(uint8_t *buf, uint8_t len)
 {
@@ -261,34 +234,32 @@ void Command_Parse(uint8_t *buf, uint8_t len)
 
     switch (cmd) {
         case CMD_START:
-            APP_Trace_Start();
+            APP_ChassisControl_Start();
             Command_SendAck(cmd);
             break;
 
         case CMD_STOP:
-            APP_Trace_Stop();
+            APP_ChassisControl_Stop();
             Command_SendAck(cmd);
             break;
 
         case CMD_SET_SPEED:
-            s_cmd_left_target_cm_s = data;
-            s_cmd_right_target_cm_s = data;
-            APP_Trace_SetBasePwm(data);
+            APP_ChassisControl_SetBaseSpeedCmps(data);
             Command_SendAck(cmd);
             break;
 
         case CMD_SET_KP:
-            command_set_tuned_kp(data);
+            command_set_line_kp(data);
             Command_SendAck(cmd);
             break;
 
         case CMD_SET_KI:
-            command_set_tuned_ki(data);
+            command_set_line_ki(data);
             Command_SendAck(cmd);
             break;
 
         case CMD_SET_KD:
-            command_set_tuned_kd(data);
+            command_set_line_kd(data);
             Command_SendAck(cmd);
             break;
 
@@ -313,29 +284,36 @@ void Command_Parse(uint8_t *buf, uint8_t len)
         }
 
         case CMD_QUERY_STATUS:
+            Command_SendStatus();
             Command_SendAck(cmd);
             break;
 
         case CMD_SET_LEFT_SPEED:
-            s_cmd_left_target_cm_s = data;
-            APP_Trace_SetTestSpeedCmps(s_cmd_left_target_cm_s, s_cmd_right_target_cm_s);
+        {
+            DVE_ChassisState_t chassis_state;
+
+            DVE_Chassis_GetState(&chassis_state);
+            DVE_Chassis_SetSpeedTargetCmps(data, chassis_state.right_target_cm_s);
             Command_SendAck(cmd);
             break;
+        }
 
         case CMD_SET_RIGHT_SPEED:
-            s_cmd_right_target_cm_s = data;
-            APP_Trace_SetTestSpeedCmps(s_cmd_left_target_cm_s, s_cmd_right_target_cm_s);
+        {
+            DVE_ChassisState_t chassis_state;
+
+            DVE_Chassis_GetState(&chassis_state);
+            DVE_Chassis_SetSpeedTargetCmps(chassis_state.left_target_cm_s, data);
             Command_SendAck(cmd);
             break;
+        }
 
         case CMD_SET_LEFT_KP:
         {
             PID_t left_pid;
 
             DVE_Chassis_GetSpeedPid(&left_pid, 0);
-            DVE_Chassis_SetLeftSpeedPid(data,
-                                        left_pid.Ki,
-                                        left_pid.Kd);
+            DVE_Chassis_SetLeftSpeedPid(data, left_pid.Ki, left_pid.Kd);
             Command_SendAck(cmd);
             break;
         }
@@ -345,9 +323,7 @@ void Command_Parse(uint8_t *buf, uint8_t len)
             PID_t left_pid;
 
             DVE_Chassis_GetSpeedPid(&left_pid, 0);
-            DVE_Chassis_SetLeftSpeedPid(left_pid.Kp,
-                                        data,
-                                        left_pid.Kd);
+            DVE_Chassis_SetLeftSpeedPid(left_pid.Kp, data, left_pid.Kd);
             Command_SendAck(cmd);
             break;
         }
@@ -357,9 +333,7 @@ void Command_Parse(uint8_t *buf, uint8_t len)
             PID_t left_pid;
 
             DVE_Chassis_GetSpeedPid(&left_pid, 0);
-            DVE_Chassis_SetLeftSpeedPid(left_pid.Kp,
-                                        left_pid.Ki,
-                                        data);
+            DVE_Chassis_SetLeftSpeedPid(left_pid.Kp, left_pid.Ki, data);
             Command_SendAck(cmd);
             break;
         }
@@ -369,9 +343,7 @@ void Command_Parse(uint8_t *buf, uint8_t len)
             PID_t right_pid;
 
             DVE_Chassis_GetSpeedPid(0, &right_pid);
-            DVE_Chassis_SetRightSpeedPid(data,
-                                         right_pid.Ki,
-                                         right_pid.Kd);
+            DVE_Chassis_SetRightSpeedPid(data, right_pid.Ki, right_pid.Kd);
             Command_SendAck(cmd);
             break;
         }
@@ -381,9 +353,7 @@ void Command_Parse(uint8_t *buf, uint8_t len)
             PID_t right_pid;
 
             DVE_Chassis_GetSpeedPid(0, &right_pid);
-            DVE_Chassis_SetRightSpeedPid(right_pid.Kp,
-                                         data,
-                                         right_pid.Kd);
+            DVE_Chassis_SetRightSpeedPid(right_pid.Kp, data, right_pid.Kd);
             Command_SendAck(cmd);
             break;
         }
@@ -393,9 +363,7 @@ void Command_Parse(uint8_t *buf, uint8_t len)
             PID_t right_pid;
 
             DVE_Chassis_GetSpeedPid(0, &right_pid);
-            DVE_Chassis_SetRightSpeedPid(right_pid.Kp,
-                                         right_pid.Ki,
-                                         data);
+            DVE_Chassis_SetRightSpeedPid(right_pid.Kp, right_pid.Ki, data);
             Command_SendAck(cmd);
             break;
         }
@@ -408,10 +376,11 @@ void Command_Parse(uint8_t *buf, uint8_t len)
 
 /*
 *********************************************************************************************************
-*   鍑?鏁?鍚? Command_FeedByte
-*   鍔熻兘璇存槑: 鍠傚叆鍗忚瀛楄妭锛屾寜A5鍖呭ご鍜屽浐瀹?瀛楄妭闀垮害缁勫寘
-*   褰?   鍙? data 鈥?鏂版敹鍒扮殑瀛楄妭
-*   杩?鍥?鍊? 鏃?*********************************************************************************************************
+*   函 数 名: Command_FeedByte
+*   功能说明: 喂入协议字节，按A5包头和固定8字节长度组包
+*   形    参: data — 新收到的字节
+*   返 回 值: 无
+*********************************************************************************************************
 */
 static void Command_FeedByte(uint8_t data)
 {
@@ -423,7 +392,7 @@ static void Command_FeedByte(uint8_t data)
         s_cmd_receiving = true;
         s_cmd_rx_index = 0U;
     }
-    
+
     s_cmd_rx_buf[s_cmd_rx_index++] = data;
 
     if (s_cmd_rx_index >= APP_CMD_PACKET_LEN) {
@@ -470,11 +439,11 @@ static char *append_i32(char *dst, int32_t value)
 }
 
 static char *append_f2(char *dst, float value)
-{
+{	
     int32_t scaled;
     int32_t integer;
     int32_t decimal;
-
+	
     scaled = (int32_t)((value >= 0.0f) ? (value * 100.0f + 0.5f) : (value * 100.0f - 0.5f));
     integer = scaled / 100;
     decimal = scaled % 100;
@@ -494,75 +463,65 @@ static char *append_f2(char *dst, float value)
 
 /*
 *********************************************************************************************************
-*   鍑?鏁?鍚? send_text_status
-*   鍔熻兘璇存槑: 鍙戦€佷竴琛屾枃鏈姸鎬侊紝渚涙墜鏈虹纭璋冨弬鏄惁鐢熸晥
-*   褰?   鍙? 鏃?*   杩?鍥?鍊? 鏃?*********************************************************************************************************
-*/
-/*
+*   函 数 名: send_wave_status
+*   功能说明: 发送二进制波形数据，供手机端图像显示
+*   形    参: 无
+*   返 回 值: 无
 *********************************************************************************************************
-*   鍑?鏁?鍚? send_wave_status
-*   鍔熻兘璇存槑: 鍙戦€佷簩杩涘埗娉㈠舰鏁版嵁锛屼緵鎵嬫満绔浘鍍忔樉绀?*   褰?   鍙? 鏃?*   杩?鍥?鍊? 鏃?*********************************************************************************************************
 */
 static void send_wave_status(void)
 {
-    DVE_ChassisState_t chassis_state;
-    APP_TraceState_t trace_state;
-    float wave_value;
+    APP_LineFollowState_t line_state;
 
-#if (APP_TRACE_ENABLE_IR_OUTER_LOOP == 0U)
-    DVE_Chassis_GetState(&chassis_state);
-    wave_value = chassis_state.right_actual_cm_s - chassis_state.right_target_cm_s;
-#else
-    APP_Trace_GetState(&trace_state);
-    wave_value = trace_state.last_error;
-#endif
-
-    Command_PackAndSend(CMD_STATUS_ERROR, wave_value);
+    APP_LineFollow_GetState(&line_state);
+    Command_PackAndSend(CMD_STATUS_ERROR, line_state.line_error);
 }
 
+/*
+*********************************************************************************************************
+*   函 数 名: send_text_status
+*   功能说明: 发送文本状态，供手机端确认调参是否生效
+*   形    参: 无
+*   返 回 值: 无
+*********************************************************************************************************
+*/
 static void send_text_status(void)
 {
     DVE_ChassisState_t chassis_state;
-    APP_TraceState_t trace_state;
+    APP_ChassisControlState_t control_state;
+    APP_LineFollowState_t line_state;
     char *p = s_text_tx_buf;
 
     DVE_Chassis_GetState(&chassis_state);
-    APP_Trace_GetState(&trace_state);
+    APP_ChassisControl_GetState(&control_state);
+    APP_LineFollow_GetState(&line_state);
 
-    p = append_str(p, "STAT,mode=");
-#if (APP_TRACE_CONTROL_MODE == APP_TRACE_MODE_SPEED_LOOP)
-#if (APP_TRACE_ENABLE_IR_OUTER_LOOP == 0U)
-    p = append_str(p, "speed_test");
-#else
-    p = append_str(p, "speed");
-#endif
-#else
-    p = append_str(p, "pwm");
-#endif
-
-    p = append_str(p, ",tune=");
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_SPEED)
-    p = append_str(p, "right_speed");
-#else
-    p = append_str(p, "trace");
-#endif
-
-    p = append_str(p, ",base=");
-#if (APP_TRACE_CONTROL_MODE == APP_TRACE_MODE_SPEED_LOOP)
-    p = append_f2(p, trace_state.base_speed_cm_s);
-#else
-    p = append_f2(p, trace_state.base_pwm);
-#endif
+    p = append_str(p, "STAT,mode=line_follow,tune=line");
     p = append_str(p, "\r\n");
-    p = append_str(p, "kp=");
-    p = append_f2(p, command_get_tuned_kp());
-    p = append_str(p, ",ki=");
-    p = append_f2(p, command_get_tuned_ki());
-    p = append_str(p, ",kd=");
-    p = append_f2(p, command_get_tuned_kd());
+    p = append_str(p, "base=");
+    p = append_f2(p, control_state.base_speed_cm_s);
+    p = append_str(p, "\r\n");
     
+    p = append_str(p, "kp=");
+    p = append_f2(p, command_get_line_kp());
+    p = append_str(p, ",ki=");
+    p = append_f2(p, command_get_line_ki());
+    p = append_str(p, ",kd=");
+    p = append_f2(p, command_get_line_kd());
     p = append_str(p, ",err=");
-    p = append_f2(p, trace_state.last_error);
+    p = append_f2(p, line_state.line_error);
+    p = append_str(p, "\r\n");
+
+    p = append_str(p, "black=");
+    p = append_i32(p, (int32_t)line_state.black_count);
+    p = append_str(p, ",lost=");
+    p = append_i32(p, line_state.is_lost ? 1 : 0);
+    p = append_str(p, ",search=");
+    p = append_i32(p, line_state.is_searching ? 1 : 0);
+    p = append_str(p, ",scale=");
+    p = append_f2(p, line_state.speed_scale);
+    p = append_str(p, ",steer=");
+    p = append_f2(p, control_state.steering_correction_cm_s);
     p = append_str(p, "\r\n");
 
     p = append_str(p, "lt=");
@@ -574,28 +533,32 @@ static void send_text_status(void)
     p = append_str(p, ",ra=");
     p = append_f2(p, chassis_state.right_actual_cm_s);
     p = append_str(p, "\r\n");
+
     p = append_str(p, "lpwm=");
     p = append_f2(p, chassis_state.left_pwm_out);
     p = append_str(p, ",rpwm=");
     p = append_f2(p, chassis_state.right_pwm_out);
     p = append_str(p, ",run=");
-    p = append_i32(p, trace_state.is_running ? 1 : 0);
+    p = append_i32(p, control_state.is_running ? 1 : 0);
     p = append_str(p, "\r\n");
-    
+
     Bluetooth_SendString(s_text_tx_buf);
 }
 
 /*
 *********************************************************************************************************
-*   鍑?鏁?鍚? APP_Command_Task
-*   鍔熻兘璇存槑: 钃濈墮鍛戒护浠诲姟锛屼富寰幆涓弽澶嶈皟鐢?*   褰?   鍙? 鏃?*   杩?鍥?鍊? 鏃?*********************************************************************************************************
+*   函 数 名: APP_Command_Task
+*   功能说明: 蓝牙命令任务，主循环中反复调用
+*   形    参: 无
+*   返 回 值: 无
+*********************************************************************************************************
 */
 void APP_Command_Task(void)
 {
     BLE_RxData_t rx;
     uint8_t i;
     uint32_t now;
-    
+
     Bluetooth_ReceiveData(&rx);
 
     if (rx.flag) {
@@ -619,8 +582,3 @@ void APP_Command_Task(void)
     }
 #endif
 }
-
-
-
-
-

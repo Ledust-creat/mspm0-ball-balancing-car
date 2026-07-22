@@ -144,17 +144,6 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 /* Defines for PIN_0: GPIOB.22 with pinCMx 50 on package pin 21 */
 #define led_PIN_0_PIN                                           (DL_GPIO_PIN_22)
 #define led_PIN_0_IOMUX                                          (IOMUX_PINCM50)
-/* Port definition for Pin Group EncoderA */
-#define EncoderA_PORT                                                    (GPIOB)
-
-/* Defines for E1A: GPIOB.6 with pinCMx 23 on package pin 58 */
-// groups represented: ["EncoderB","EncoderA"]
-// pins affected: ["E2A","E1A"]
-#define GPIO_MULTIPLE_GPIOB_INT_IRQN                            (GPIOB_INT_IRQn)
-#define GPIO_MULTIPLE_GPIOB_INT_IIDX            (DL_INTERRUPT_GROUP1_IIDX_GPIOB)
-#define EncoderA_E1A_IIDX                                    (DL_GPIO_IIDX_DIO6)
-#define EncoderA_E1A_PIN                                         (DL_GPIO_PIN_6)
-#define EncoderA_E1A_IOMUX                                       (IOMUX_PINCM23)
 /* Port definition for Pin Group Chassis_MotorA */
 #define Chassis_MotorA_PORT                                              (GPIOA)
 
@@ -205,6 +194,17 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 #define Digital_D8_PORT                                                  (GPIOA)
 #define Digital_D8_PIN                                          (DL_GPIO_PIN_27)
 #define Digital_D8_IOMUX                                         (IOMUX_PINCM60)
+/* Port definition for Pin Group EncoderA */
+#define EncoderA_PORT                                                    (GPIOB)
+
+/* Defines for E1A: GPIOB.6 with pinCMx 23 on package pin 58 */
+// groups represented: ["EncoderB","EncoderA"]
+// pins affected: ["E2A","E1A"]
+#define GPIO_MULTIPLE_GPIOB_INT_IRQN                            (GPIOB_INT_IRQn)
+#define GPIO_MULTIPLE_GPIOB_INT_IIDX            (DL_INTERRUPT_GROUP1_IIDX_GPIOB)
+#define EncoderA_E1A_IIDX                                    (DL_GPIO_IIDX_DIO6)
+#define EncoderA_E1A_PIN                                         (DL_GPIO_PIN_6)
+#define EncoderA_E1A_IOMUX                                       (IOMUX_PINCM23)
 /* Defines for E1B: GPIOB.7 with pinCMx 24 on package pin 59 */
 #define EncoderA_E1B_PIN                                         (DL_GPIO_PIN_7)
 #define EncoderA_E1B_IOMUX                                       (IOMUX_PINCM24)

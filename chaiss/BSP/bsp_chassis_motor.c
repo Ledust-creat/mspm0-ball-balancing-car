@@ -162,7 +162,7 @@ void BSP_ChassisMotor_SetLeftPwm(int16_t pwm)
     int16_t pwm_abs;
 
     pwm = pwm_limit(pwm);
-
+    
     if (pwm == 0) {
         DL_TimerG_setCaptureCompareValue(Chassis_Motor_PWM_INST, 0, GPIO_Chassis_Motor_PWM_C1_IDX);
         right_motor_coast();

@@ -1,4 +1,4 @@
-﻿#include "dve_chassis.h"
+#include "dve_chassis.h"
 #include "bsp_chassis_motor.h"
 #include "bsp_encoder.h"
 #include "ti_msp_dl_config.h"
@@ -24,7 +24,6 @@
 #define DVE_CHASSIS_RIGHT_SPEED_KI          (1.5f)      /* 右轮速度环初始Ki */
 #define DVE_CHASSIS_RIGHT_SPEED_KD          (0.0f)      /* 右轮速度环初始Kd */
 
-#define DVE_CHASSIS_SPEED_MAX_CM_S          (80.0f)     /* 目标轮速限幅 */
 #define DVE_CHASSIS_SPEED_PID_MAX_IOUT      (1000.0f)   /* 速度环积分限幅 */
 #define DVE_CHASSIS_SPEED_PID_MAX_OUT       ((float)BSP_CHASSIS_MOTOR_PWM_MAX)
 
@@ -249,7 +248,7 @@ DVE_ChassisStatus_t DVE_Chassis_SetPwm(int16_t left_pwm, int16_t right_pwm)
 
     left_pwm = (int16_t)((float)left_pwm * s_left_pwm_ratio);
     right_pwm = (int16_t)((float)right_pwm * s_right_pwm_ratio);
-
+    
     left_pwm = (int16_t)(left_pwm * DVE_CHASSIS_DEFAULT_LEFT_SIGN);
     right_pwm = (int16_t)(right_pwm * DVE_CHASSIS_DEFAULT_RIGHT_SIGN);
 
@@ -281,19 +280,6 @@ DVE_ChassisStatus_t DVE_Chassis_SetTracePwm(float base_pwm, float turn_pwm)
     return DVE_Chassis_SetPwm(left_pwm, right_pwm);
 }
 
-/*
-*********************************************************************************************************
-*   函 数 名: DVE_Chassis_SetSpeedPid
-*   功能说明: 设置左右轮速度环PID参数
-*   形    参: kp, ki, kd — PID参数
-*   返 回 值: 无
-*********************************************************************************************************
-*/
-void DVE_Chassis_SetSpeedPid(float kp, float ki, float kd)
-{
-    DVE_Chassis_SetLeftSpeedPid(kp, ki, kd);
-    DVE_Chassis_SetRightSpeedPid(kp, ki, kd);
-}
 
 /*
 *********************************************************************************************************

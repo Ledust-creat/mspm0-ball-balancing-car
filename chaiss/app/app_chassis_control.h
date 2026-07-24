@@ -2,9 +2,22 @@
 #define APP_CHASSIS_CONTROL_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+/*
+*********************************************************************************************************
+*   宏定义
+*********************************************************************************************************
+*/
+#define APP_CHASSIS_CONTROL_MODE_LINE_FOLLOW    (0U)      /* 循迹外环 */
+#define APP_CHASSIS_CONTROL_MODE_GYRO_YAW       (1U)      /* 陀螺仪yaw外环 */
+
+#ifndef APP_CHASSIS_CONTROL_MODE
+#define APP_CHASSIS_CONTROL_MODE                APP_CHASSIS_CONTROL_MODE_GYRO_YAW
 #endif
 
 /*
@@ -14,8 +27,9 @@ extern "C" {
 */
 typedef struct
 {
-    float base_speed_cm_s;                  /* 循迹基础速度 */
+    float base_speed_cm_s;                  /* 基础速度 */
     float steering_correction_cm_s;         /* 转向修正速度 */
+    uint8_t control_mode;                   /* 当前外环模式 */
     bool is_running;                        /* 底盘运行状态 */
 } APP_ChassisControlState_t;
 

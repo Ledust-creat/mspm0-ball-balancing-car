@@ -18,22 +18,28 @@ extern "C" {
 #define APP_CMD_WAVE_PERIOD_MS          (100U)      /* 二进制波形回传周期 */
 #define APP_CMD_TEXT_PERIOD_MS          (3000U)     /* 文本状态回传周期 */
 
-#define APP_CMD_ENABLE_ACK_FRAME        (0U)        /* 1发送ACK二进制帧，0不发送 */
-#define APP_CMD_ENABLE_ERR_FRAME        (0U)        /* 1发送ERR二进制帧，0不发送 */
-#define APP_CMD_ENABLE_WAVE_FRAME       (1U)        /* 1发送波形二进制帧，0不发送 */
-#define APP_CMD_ENABLE_TEXT_STATUS      (1U)        /* 1发送文本状态，0不发送 */
+#define APP_CMD_ENABLE_ACK_FRAME        (0U)        /* 1发送ACK帧，0关闭 */
+#define APP_CMD_ENABLE_ERR_FRAME        (0U)        /* 1发送ERR帧，0关闭 */
+#define APP_CMD_ENABLE_WAVE_FRAME       (1U)        /* 1发送波形帧，0关闭 */
+#define APP_CMD_ENABLE_TEXT_STATUS      (1U)        /* 1发送文本状态，0关闭 */
+
+#define APP_CMD_TUNE_TARGET_LINE        (0U)        /* 调循迹外环PID */
+#define APP_CMD_TUNE_TARGET_GYRO        (1U)        /* 调陀螺仪yaw外环PID */
+#ifndef APP_CMD_TUNE_TARGET
+#define APP_CMD_TUNE_TARGET             APP_CMD_TUNE_TARGET_GYRO
+#endif
 
 #define CMD_START                       (0x01U)     /* 启动运行 */
 #define CMD_STOP                        (0x02U)     /* 停止运行 */
-#define CMD_SET_SPEED                   (0x03U)     /* 设置循迹基础速度 */
-#define CMD_SET_KP                      (0x04U)     /* 设置循迹外环Kp */
-#define CMD_SET_KI                      (0x05U)     /* 设置循迹外环Ki */
-#define CMD_SET_KD                      (0x06U)     /* 设置循迹外环Kd */
+#define CMD_SET_SPEED                   (0x03U)     /* 设置基础速度 */
+#define CMD_SET_KP                      (0x04U)     /* 设置当前外环Kp */
+#define CMD_SET_KI                      (0x05U)     /* 设置当前外环Ki */
+#define CMD_SET_KD                      (0x06U)     /* 设置当前外环Kd */
 #define CMD_SET_LEFT_RATIO              (0x07U)     /* 设置左轮PWM补偿 */
 #define CMD_SET_RIGHT_RATIO             (0x08U)     /* 设置右轮PWM补偿 */
 #define CMD_QUERY_STATUS                (0x09U)     /* 查询状态 */
-#define CMD_SET_LEFT_SPEED              (0x0AU)     /* 设置左轮目标速度，调试命令 */
-#define CMD_SET_RIGHT_SPEED             (0x0BU)     /* 设置右轮目标速度，调试命令 */
+#define CMD_SET_LEFT_SPEED              (0x0AU)     /* 设置左轮目标速度 */
+#define CMD_SET_RIGHT_SPEED             (0x0BU)     /* 设置右轮目标速度 */
 #define CMD_SET_LEFT_KP                 (0x0CU)     /* 设置左轮速度环Kp */
 #define CMD_SET_LEFT_KI                 (0x0DU)     /* 设置左轮速度环Ki */
 #define CMD_SET_LEFT_KD                 (0x0EU)     /* 设置左轮速度环Kd */
@@ -41,12 +47,12 @@ extern "C" {
 #define CMD_SET_RIGHT_KI                (0x10U)     /* 设置右轮速度环Ki */
 #define CMD_SET_RIGHT_KD                (0x11U)     /* 设置右轮速度环Kd */
 
-#define CMD_ACK                         (0x80U)     /* 通用应答，data=原命令字 */
-#define CMD_STATUS_ERROR                (0x82U)     /* 回传循迹误差，兼容图像显示 */
+#define CMD_ACK                         (0x80U)     /* 通用应答 */
+#define CMD_STATUS_ERROR                (0x82U)     /* 回传外环误差 */
 #define CMD_STATUS_TURN                 (0x83U)     /* 回传转向修正速度 */
 #define CMD_STATUS_BASE                 (0x84U)     /* 回传基础速度 */
-#define CMD_STATUS_KP                   (0x85U)     /* 回传循迹Kp */
-#define CMD_STATUS_KD                   (0x86U)     /* 回传循迹Kd */
+#define CMD_STATUS_KP                   (0x85U)     /* 回传当前外环Kp */
+#define CMD_STATUS_KD                   (0x86U)     /* 回传当前外环Kd */
 #define CMD_STATUS_RUN                  (0x87U)     /* 回传运行状态 */
 #define CMD_STATUS_LEFT_SPEED           (0x88U)     /* 回传左轮实际速度 */
 #define CMD_STATUS_RIGHT_SPEED          (0x89U)     /* 回传右轮实际速度 */

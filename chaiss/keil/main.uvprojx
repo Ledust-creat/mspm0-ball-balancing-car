@@ -314,7 +314,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>3</Optim>
+            <Optim>1</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>__MSPM0G3507__</Define>
               <Undefine></Undefine>
-              <IncludePath>../;D:\TI\CCS\mspm0_sdk_2_10_00_04\source;D:\TI\CCS\mspm0_sdk_2_10_00_04\source\third_party\CMSIS\Core\Include;..\DVE;..\BSP;..\app</IncludePath>
+              <IncludePath>../;D:\TI\CCS\mspm0_sdk_2_10_00_04\source;D:\TI\CCS\mspm0_sdk_2_10_00_04\source\third_party\CMSIS\Core\Include;..\DVE;..\BSP;..\app;..\GYRO</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -517,6 +517,16 @@
               <FileType>5</FileType>
               <FilePath>..\app\app_chassis_control.h</FilePath>
             </File>
+            <File>
+              <FileName>app_gyro_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\app_gyro_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_gyro_control.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\app_gyro_control.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -596,6 +606,31 @@
               <FileName>dve_ir_sensor.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\DVE\dve_ir_sensor.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>GYRO</GroupName>
+          <Files>
+            <File>
+              <FileName>bsp_gyro_spi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\GYRO\bsp_gyro_spi.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_gyro_spi.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\GYRO\bsp_gyro_spi.h</FilePath>
+            </File>
+            <File>
+              <FileName>dve_icm20602.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\GYRO\dve_icm20602.c</FilePath>
+            </File>
+            <File>
+              <FileName>dve_icm20602.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\GYRO\dve_icm20602.h</FilePath>
             </File>
           </Files>
         </Group>

@@ -41,6 +41,7 @@
 #include "ti_msp_dl_config.h"
 
 DL_TimerA_backupConfig gChassis_Motor_PWMBackup;
+DL_SPI_backupConfig gSPI_ICM20602Backup;
 
 /*
  *  ======== SYSCFG_DL_init ========
@@ -55,10 +56,12 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     SYSCFG_DL_Chassis_Motor_PWM_init();
     SYSCFG_DL_TIMER_Chassis_Motor_Encoder_Read_init();
     SYSCFG_DL_UART_BLUETOOTH_init();
+    SYSCFG_DL_SPI_ICM20602_init();
     /* Ensure backup structures have no valid state */
 	gChassis_Motor_PWMBackup.backupRdy 	= false;
 
 
+	gSPI_ICM20602Backup.backupRdy 	= false;
 
 }
 /*
@@ -70,6 +73,7 @@ SYSCONFIG_WEAK bool SYSCFG_DL_saveConfiguration(void)
     bool retStatus = true;
 
 	retStatus &= DL_TimerA_saveConfiguration(Chassis_Motor_PWM_INST, &gChassis_Motor_PWMBackup);
+	retStatus &= DL_SPI_saveConfiguration(SPI_ICM20602_INST, &gSPI_ICM20602Backup);
 
     return retStatus;
 }
@@ -80,6 +84,7 @@ SYSCONFIG_WEAK bool SYSCFG_DL_restoreConfiguration(void)
     bool retStatus = true;
 
 	retStatus &= DL_TimerA_restoreConfiguration(Chassis_Motor_PWM_INST, &gChassis_Motor_PWMBackup, false);
+	retStatus &= DL_SPI_restoreConfiguration(SPI_ICM20602_INST, &gSPI_ICM20602Backup);
 
     return retStatus;
 }
@@ -91,12 +96,14 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_TimerA_reset(Chassis_Motor_PWM_INST);
     DL_TimerG_reset(TIMER_Chassis_Motor_Encoder_Read_INST);
     DL_UART_Main_reset(UART_BLUETOOTH_INST);
+    DL_SPI_reset(SPI_ICM20602_INST);
 
     DL_GPIO_enablePower(GPIOA);
     DL_GPIO_enablePower(GPIOB);
     DL_TimerA_enablePower(Chassis_Motor_PWM_INST);
     DL_TimerG_enablePower(TIMER_Chassis_Motor_Encoder_Read_INST);
     DL_UART_Main_enablePower(UART_BLUETOOTH_INST);
+    DL_SPI_enablePower(SPI_ICM20602_INST);
     delay_cycles(POWER_STARTUP_DELAY);
 }
 
@@ -116,7 +123,16 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_initPeripheralInputFunction(
         GPIO_UART_BLUETOOTH_IOMUX_RX, GPIO_UART_BLUETOOTH_IOMUX_RX_FUNC);
 
+    DL_GPIO_initPeripheralOutputFunction(
+        GPIO_SPI_ICM20602_IOMUX_SCLK, GPIO_SPI_ICM20602_IOMUX_SCLK_FUNC);
+    DL_GPIO_initPeripheralOutputFunction(
+        GPIO_SPI_ICM20602_IOMUX_PICO, GPIO_SPI_ICM20602_IOMUX_PICO_FUNC);
+    DL_GPIO_initPeripheralInputFunction(
+        GPIO_SPI_ICM20602_IOMUX_POCI, GPIO_SPI_ICM20602_IOMUX_POCI_FUNC);
+
     DL_GPIO_initDigitalOutput(led_PIN_0_IOMUX);
+
+    DL_GPIO_initDigitalOutput(ICM20602_PIN_1_IOMUX);
 
     DL_GPIO_initDigitalOutput(Chassis_MotorA_AIN1_IOMUX);
 
@@ -181,7 +197,9 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_clearPins(GPIOB, led_PIN_0_PIN |
 		Chassis_MotorB_BIN1_PIN |
 		Chassis_MotorB_BIN2_PIN);
+    DL_GPIO_setPins(GPIOB, ICM20602_PIN_1_PIN);
     DL_GPIO_enableOutput(GPIOB, led_PIN_0_PIN |
+		ICM20602_PIN_1_PIN |
 		Chassis_MotorB_BIN1_PIN |
 		Chassis_MotorB_BIN2_PIN);
     DL_GPIO_setLowerPinsPolarity(GPIOB, DL_GPIO_PIN_6_EDGE_RISE_FALL |
@@ -431,5 +449,37 @@ SYSCONFIG_WEAK void SYSCFG_DL_UART_BLUETOOTH_init(void)
 
 
     DL_UART_Main_enable(UART_BLUETOOTH_INST);
+}
+
+static const DL_SPI_Config gSPI_ICM20602_config = {
+    .mode        = DL_SPI_MODE_CONTROLLER,
+    .frameFormat = DL_SPI_FRAME_FORMAT_MOTO3_POL1_PHA1,
+    .parity      = DL_SPI_PARITY_NONE,
+    .dataSize    = DL_SPI_DATA_SIZE_8,
+    .bitOrder    = DL_SPI_BIT_ORDER_MSB_FIRST,
+};
+
+static const DL_SPI_ClockConfig gSPI_ICM20602_clockConfig = {
+    .clockSel    = DL_SPI_CLOCK_BUSCLK,
+    .divideRatio = DL_SPI_CLOCK_DIVIDE_RATIO_1
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_SPI_ICM20602_init(void) {
+    DL_SPI_setClockConfig(SPI_ICM20602_INST, (DL_SPI_ClockConfig *) &gSPI_ICM20602_clockConfig);
+
+    DL_SPI_init(SPI_ICM20602_INST, (DL_SPI_Config *) &gSPI_ICM20602_config);
+
+    /* Configure Controller mode */
+    /*
+     * Set the bit rate clock divider to generate the serial output clock
+     *     outputBitRate = (spiInputClock) / ((1 + SCR) * 2)
+     *     1000000 = (80000000)/((1 + 39) * 2)
+     */
+    DL_SPI_setBitRateSerialClockDivider(SPI_ICM20602_INST, 39);
+    /* Set RX and TX FIFO threshold levels */
+    DL_SPI_setFIFOThreshold(SPI_ICM20602_INST, DL_SPI_RX_FIFO_LEVEL_1_2_FULL, DL_SPI_TX_FIFO_LEVEL_1_2_EMPTY);
+
+    /* Enable module */
+    DL_SPI_enable(SPI_ICM20602_INST);
 }
 

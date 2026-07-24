@@ -137,13 +137,38 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 
 
 
+/* Defines for SPI_ICM20602 */
+#define SPI_ICM20602_INST                                                  SPI1
+#define SPI_ICM20602_INST_IRQHandler                            SPI1_IRQHandler
+#define SPI_ICM20602_INST_INT_IRQN                                SPI1_INT_IRQn
+#define GPIO_SPI_ICM20602_PICO_PORT                                       GPIOB
+#define GPIO_SPI_ICM20602_PICO_PIN                               DL_GPIO_PIN_22
+#define GPIO_SPI_ICM20602_IOMUX_PICO                            (IOMUX_PINCM50)
+#define GPIO_SPI_ICM20602_IOMUX_PICO_FUNC            IOMUX_PINCM50_PF_SPI1_PICO
+#define GPIO_SPI_ICM20602_POCI_PORT                                       GPIOA
+#define GPIO_SPI_ICM20602_POCI_PIN                               DL_GPIO_PIN_16
+#define GPIO_SPI_ICM20602_IOMUX_POCI                            (IOMUX_PINCM38)
+#define GPIO_SPI_ICM20602_IOMUX_POCI_FUNC            IOMUX_PINCM38_PF_SPI1_POCI
+/* GPIO configuration for SPI_ICM20602 */
+#define GPIO_SPI_ICM20602_SCLK_PORT                                       GPIOA
+#define GPIO_SPI_ICM20602_SCLK_PIN                               DL_GPIO_PIN_17
+#define GPIO_SPI_ICM20602_IOMUX_SCLK                            (IOMUX_PINCM39)
+#define GPIO_SPI_ICM20602_IOMUX_SCLK_FUNC            IOMUX_PINCM39_PF_SPI1_SCLK
+
+
 
 /* Port definition for Pin Group led */
 #define led_PORT                                                         (GPIOB)
 
-/* Defines for PIN_0: GPIOB.22 with pinCMx 50 on package pin 21 */
-#define led_PIN_0_PIN                                           (DL_GPIO_PIN_22)
-#define led_PIN_0_IOMUX                                          (IOMUX_PINCM50)
+/* Defines for PIN_0: GPIOB.27 with pinCMx 58 on package pin 29 */
+#define led_PIN_0_PIN                                           (DL_GPIO_PIN_27)
+#define led_PIN_0_IOMUX                                          (IOMUX_PINCM58)
+/* Port definition for Pin Group ICM20602 */
+#define ICM20602_PORT                                                    (GPIOB)
+
+/* Defines for PIN_1: GPIOB.21 with pinCMx 49 on package pin 20 */
+#define ICM20602_PIN_1_PIN                                      (DL_GPIO_PIN_21)
+#define ICM20602_PIN_1_IOMUX                                     (IOMUX_PINCM49)
 /* Port definition for Pin Group Chassis_MotorA */
 #define Chassis_MotorA_PORT                                              (GPIOA)
 
@@ -231,6 +256,7 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 void SYSCFG_DL_Chassis_Motor_PWM_init(void);
 void SYSCFG_DL_TIMER_Chassis_Motor_Encoder_Read_init(void);
 void SYSCFG_DL_UART_BLUETOOTH_init(void);
+void SYSCFG_DL_SPI_ICM20602_init(void);
 
 
 bool SYSCFG_DL_saveConfiguration(void);

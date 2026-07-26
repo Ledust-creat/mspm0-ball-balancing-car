@@ -6,8 +6,8 @@
 *   宏定义
 *********************************************************************************************************
 */
-#define WHEEL_DIAMETER_MM               (65.0f)     /* 轮胎直径，单位mm */
-#define ENCODER_LINES_PER_WHEEL_REV     (265.2f)    /* 减速后物理线数 */
+#define WHEEL_DIAMETER_MM               (68.0f)     /* 轮胎直径，单位mm */
+#define ENCODER_LINES_PER_WHEEL_REV     (330.0f)    /* 减速后物理线数 */
 #define ENCODER_DECODE_FACTOR           (2.0f)      /* A相双边沿二倍频 */
 #define ENCODER_COUNTS_PER_WHEEL_REV    (ENCODER_LINES_PER_WHEEL_REV * ENCODER_DECODE_FACTOR)
 #define SPEED_CALC_PERIOD_MS            (20U)       /* 速度计算周期，单位ms */
@@ -54,8 +54,10 @@ static int32_t encoder_apply_sign(int32_t pulse, int8_t sign)
 */
 void Encoder_Init(void)
 {
-    NVIC_ClearPendingIRQ(BSP_ENCODER_GPIO_INT_IRQN);
-    NVIC_EnableIRQ(BSP_ENCODER_GPIO_INT_IRQN);
+    NVIC_ClearPendingIRQ(BSP_ENCODER_A_INT_IRQN);
+    NVIC_EnableIRQ(BSP_ENCODER_A_INT_IRQN);
+    NVIC_ClearPendingIRQ(BSP_ENCODER_B_INT_IRQN);
+    NVIC_EnableIRQ(BSP_ENCODER_B_INT_IRQN);
 
     __disable_irq();
     g_MotorA_Encoder_Count = 0;

@@ -190,24 +190,24 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP,
 		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
-    DL_GPIO_clearPins(GPIOA, Chassis_MotorA_AIN1_PIN |
-		Chassis_MotorA_AIN2_PIN);
-    DL_GPIO_enableOutput(GPIOA, Chassis_MotorA_AIN1_PIN |
-		Chassis_MotorA_AIN2_PIN);
+    DL_GPIO_clearPins(GPIOA, Chassis_MotorB_BIN1_PIN);
+    DL_GPIO_enableOutput(GPIOA, Chassis_MotorB_BIN1_PIN);
+    DL_GPIO_setLowerPinsPolarity(GPIOA, DL_GPIO_PIN_13_EDGE_RISE_FALL);
+    DL_GPIO_clearInterruptStatus(GPIOA, EncoderB_E2A_PIN);
+    DL_GPIO_enableInterrupt(GPIOA, EncoderB_E2A_PIN);
     DL_GPIO_clearPins(GPIOB, led_PIN_0_PIN |
-		Chassis_MotorB_BIN1_PIN |
+		Chassis_MotorA_AIN1_PIN |
+		Chassis_MotorA_AIN2_PIN |
 		Chassis_MotorB_BIN2_PIN);
     DL_GPIO_setPins(GPIOB, ICM20602_PIN_1_PIN);
     DL_GPIO_enableOutput(GPIOB, led_PIN_0_PIN |
 		ICM20602_PIN_1_PIN |
-		Chassis_MotorB_BIN1_PIN |
+		Chassis_MotorA_AIN1_PIN |
+		Chassis_MotorA_AIN2_PIN |
 		Chassis_MotorB_BIN2_PIN);
-    DL_GPIO_setLowerPinsPolarity(GPIOB, DL_GPIO_PIN_6_EDGE_RISE_FALL |
-		DL_GPIO_PIN_8_EDGE_RISE_FALL);
-    DL_GPIO_clearInterruptStatus(GPIOB, EncoderA_E1A_PIN |
-		EncoderB_E2A_PIN);
-    DL_GPIO_enableInterrupt(GPIOB, EncoderA_E1A_PIN |
-		EncoderB_E2A_PIN);
+    DL_GPIO_setUpperPinsPolarity(GPIOB, DL_GPIO_PIN_26_EDGE_RISE_FALL);
+    DL_GPIO_clearInterruptStatus(GPIOB, EncoderA_E1A_PIN);
+    DL_GPIO_enableInterrupt(GPIOB, EncoderA_E1A_PIN);
 
 }
 
@@ -453,7 +453,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_UART_BLUETOOTH_init(void)
 
 static const DL_SPI_Config gSPI_ICM20602_config = {
     .mode        = DL_SPI_MODE_CONTROLLER,
-    .frameFormat = DL_SPI_FRAME_FORMAT_MOTO3_POL1_PHA1,
+    .frameFormat = DL_SPI_FRAME_FORMAT_MOTO3_POL1_PHA0,
     .parity      = DL_SPI_PARITY_NONE,
     .dataSize    = DL_SPI_DATA_SIZE_8,
     .bitOrder    = DL_SPI_BIT_ORDER_MSB_FIRST,

@@ -15,9 +15,10 @@ extern "C" {
 */
 #define APP_CHASSIS_CONTROL_MODE_LINE_FOLLOW    (0U)      /* 循迹外环 */
 #define APP_CHASSIS_CONTROL_MODE_GYRO_YAW       (1U)      /* 陀螺仪yaw外环 */
+#define APP_CHASSIS_CONTROL_MODE_SPEED_TEST     (2U)      /* 纯速度环测试 */
 
 #ifndef APP_CHASSIS_CONTROL_MODE
-#define APP_CHASSIS_CONTROL_MODE                APP_CHASSIS_CONTROL_MODE_GYRO_YAW
+#define APP_CHASSIS_CONTROL_MODE                APP_CHASSIS_CONTROL_MODE_LINE_FOLLOW
 #endif
 
 /*

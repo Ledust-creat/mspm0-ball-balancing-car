@@ -14,7 +14,16 @@ extern "C" {
 *********************************************************************************************************
 */
 #define DVE_IR_CHANNEL_NUM       (8U)     /* 循迹传感器通道数量 */
+#define DVE_IR_ERROR_MODE_WEIGHTED_SUM      (0U)     /* 加权求和误差 */
+#define DVE_IR_ERROR_MODE_WEIGHTED_AVERAGE  (1U)     /* 加权平均误差 */
 
+#ifndef DVE_IR_ERROR_MODE
+#define DVE_IR_ERROR_MODE        DVE_IR_ERROR_MODE_WEIGHTED_AVERAGE
+#endif
+/* 0: 正常接线 D1->D8
+ * 1: 反向接线 D8->D1
+ */
+#define DVE_IR_REVERSE_CHANNEL   (1U)
 /*
 *********************************************************************************************************
 *   类型定义

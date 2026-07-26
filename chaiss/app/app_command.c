@@ -34,13 +34,12 @@ static uint8_t Command_CalcCheckSum(uint8_t *buf);
 static void Command_SendAck(uint8_t cmd);
 static void Command_SendError(float err_code);
 static void Command_FeedByte(uint8_t data);
+static void command_get_tune_pid(PID_t *pid);
+static void command_set_tune_pid(float kp, float ki, float kd);
+static float command_get_tune_error(void);
 static void command_set_outer_kp(float value);
 static void command_set_outer_ki(float value);
 static void command_set_outer_kd(float value);
-static float command_get_outer_kp(void);
-static float command_get_outer_ki(void);
-static float command_get_outer_kd(void);
-static float command_get_outer_error(void);
 static void send_wave_status(void);
 static void send_text_status(void);
 static char *append_str(char *dst, const char *src);
@@ -83,138 +82,110 @@ static void Command_SendError(float err_code)
 #endif
 }
 
-static void command_set_outer_kp(float value)
+static void command_get_tune_pid(PID_t *pid)
 {
+    if (pid == 0) return; /* 防止空指针写入 */
+
 #if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
-    APP_LineFollowState_t line_state;
+    APP_LineFollowState_t state;
 
-    APP_LineFollow_GetState(&line_state);
-    APP_LineFollow_SetPid(value, line_state.line_pid.Ki, line_state.line_pid.Kd);
+    APP_LineFollow_GetState(&state);
+    *pid = state.line_pid; /* 复制循迹PID参数 */
 #elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_GYRO)
-    APP_GyroControlState_t gyro_state;
+    APP_GyroControlState_t state;
 
-    APP_GyroControl_GetState(&gyro_state);
-    APP_GyroControl_SetYawPid(value, gyro_state.yaw_pid.Ki, gyro_state.yaw_pid.Kd);
+    APP_GyroControl_GetState(&state);
+    *pid = state.yaw_pid; /* 复制航向PID参数 */
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LEFT_SPEED)
+    DVE_Chassis_GetSpeedPid(pid, 0); /* 读取左轮速度PID */
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_RIGHT_SPEED)
+    DVE_Chassis_GetSpeedPid(0, pid); /* 读取右轮速度PID */
 #else
 #error "Unsupported APP_CMD_TUNE_TARGET"
 #endif
+}
+
+static void command_set_tune_pid(float kp, float ki, float kd)
+{
+#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
+    APP_LineFollow_SetPid(kp, ki, kd); /* 写入循迹PID */
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_GYRO)
+    APP_GyroControl_SetYawPid(kp, ki, kd); /* 写入航向PID */
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LEFT_SPEED)
+    DVE_Chassis_SetLeftSpeedPid(kp, ki, kd); /* 写入左轮速度PID */
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_RIGHT_SPEED)
+    DVE_Chassis_SetRightSpeedPid(kp, ki, kd); /* 写入右轮速度PID */
+#else
+#error "Unsupported APP_CMD_TUNE_TARGET"
+#endif
+}
+
+static float command_get_tune_error(void)
+{
+#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
+    APP_LineFollowState_t state;
+
+    APP_LineFollow_GetState(&state);
+    return state.line_error;
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_GYRO)
+    APP_GyroControlState_t state;
+    
+    APP_GyroControl_GetState(&state);
+    return state.yaw_error_deg;
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LEFT_SPEED)
+    DVE_ChassisState_t state;
+
+    DVE_Chassis_GetState(&state);
+    return state.left_actual_cm_s;
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_RIGHT_SPEED)
+    DVE_ChassisState_t state;
+
+    DVE_Chassis_GetState(&state);
+    return state.right_actual_cm_s;
+#else
+#error "Unsupported APP_CMD_TUNE_TARGET"
+#endif
+}
+
+static void command_set_outer_kp(float value)
+{
+    PID_t pid;
+
+    command_get_tune_pid(&pid); /* 保留Ki、Kd，仅更新Kp */
+    command_set_tune_pid(value, pid.Ki, pid.Kd);
 }
 
 static void command_set_outer_ki(float value)
 {
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
-    APP_LineFollowState_t line_state;
+    PID_t pid;
 
-    APP_LineFollow_GetState(&line_state);
-    APP_LineFollow_SetPid(line_state.line_pid.Kp, value, line_state.line_pid.Kd);
-#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_GYRO)
-    APP_GyroControlState_t gyro_state;
-
-    APP_GyroControl_GetState(&gyro_state);
-    APP_GyroControl_SetYawPid(gyro_state.yaw_pid.Kp, value, gyro_state.yaw_pid.Kd);
-#else
-#error "Unsupported APP_CMD_TUNE_TARGET"
-#endif
+    command_get_tune_pid(&pid); /* 保留Kp、Kd，仅更新Ki */
+    command_set_tune_pid(pid.Kp, value, pid.Kd);
 }
 
 static void command_set_outer_kd(float value)
 {
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
-    APP_LineFollowState_t line_state;
+    PID_t pid;
 
-    APP_LineFollow_GetState(&line_state);
-    APP_LineFollow_SetPid(line_state.line_pid.Kp, line_state.line_pid.Ki, value);
-#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_GYRO)
-    APP_GyroControlState_t gyro_state;
-
-    APP_GyroControl_GetState(&gyro_state);
-    APP_GyroControl_SetYawPid(gyro_state.yaw_pid.Kp, gyro_state.yaw_pid.Ki, value);
-#else
-#error "Unsupported APP_CMD_TUNE_TARGET"
-#endif
-}
-
-static float command_get_outer_kp(void)
-{
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
-    APP_LineFollowState_t line_state;
-
-    APP_LineFollow_GetState(&line_state);
-    return line_state.line_pid.Kp;
-#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_GYRO)
-    APP_GyroControlState_t gyro_state;
-
-    APP_GyroControl_GetState(&gyro_state);
-    return gyro_state.yaw_pid.Kp;
-#else
-#error "Unsupported APP_CMD_TUNE_TARGET"
-#endif
-}
-
-static float command_get_outer_ki(void)
-{
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
-    APP_LineFollowState_t line_state;
-
-    APP_LineFollow_GetState(&line_state);
-    return line_state.line_pid.Ki;
-#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_GYRO)
-    APP_GyroControlState_t gyro_state;
-
-    APP_GyroControl_GetState(&gyro_state);
-    return gyro_state.yaw_pid.Ki;
-#else
-#error "Unsupported APP_CMD_TUNE_TARGET"
-#endif
-}
-
-static float command_get_outer_kd(void)
-{
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
-    APP_LineFollowState_t line_state;
-
-    APP_LineFollow_GetState(&line_state);
-    return line_state.line_pid.Kd;
-#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_GYRO)
-    APP_GyroControlState_t gyro_state;
-
-    APP_GyroControl_GetState(&gyro_state);
-    return gyro_state.yaw_pid.Kd;
-#else
-#error "Unsupported APP_CMD_TUNE_TARGET"
-#endif
-}
-
-static float command_get_outer_error(void)
-{
-#if (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_LINE_FOLLOW)
-    APP_LineFollowState_t line_state;
-
-    APP_LineFollow_GetState(&line_state);
-    return line_state.line_error;
-#elif (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_GYRO_YAW)
-    APP_GyroControlState_t gyro_state;
-
-    APP_GyroControl_GetState(&gyro_state);
-    return gyro_state.yaw_error_deg;
-#else
-#error "Unsupported APP_CHASSIS_CONTROL_MODE"
-#endif
+    command_get_tune_pid(&pid); /* 保留Kp、Ki，仅更新Kd */
+    command_set_tune_pid(pid.Kp, pid.Ki, value);
 }
 
 void Command_SendStatus(void)
 {
     DVE_ChassisState_t chassis_state;
     APP_ChassisControlState_t control_state;
+    PID_t tune_pid;
 
     DVE_Chassis_GetState(&chassis_state);
     APP_ChassisControl_GetState(&control_state);
+    command_get_tune_pid(&tune_pid); /* PID参数只读取一次 */
 
-    Command_PackAndSend(CMD_STATUS_ERROR, command_get_outer_error());
+    Command_PackAndSend(CMD_STATUS_ERROR, command_get_tune_error());
     Command_PackAndSend(CMD_STATUS_TURN, control_state.steering_correction_cm_s);
     Command_PackAndSend(CMD_STATUS_BASE, control_state.base_speed_cm_s);
-    Command_PackAndSend(CMD_STATUS_KP, command_get_outer_kp());
-    Command_PackAndSend(CMD_STATUS_KD, command_get_outer_kd());
+    Command_PackAndSend(CMD_STATUS_KP, tune_pid.Kp);
+    Command_PackAndSend(CMD_STATUS_KD, tune_pid.Kd);
     Command_PackAndSend(CMD_STATUS_RUN, control_state.is_running ? 1.0f : 0.0f);
     Command_PackAndSend(CMD_STATUS_LEFT_SPEED, chassis_state.left_actual_cm_s);
     Command_PackAndSend(CMD_STATUS_RIGHT_SPEED, chassis_state.right_actual_cm_s);
@@ -470,83 +441,80 @@ static char *append_f2(char *dst, float value)
 
 static void send_wave_status(void)
 {
-    Command_PackAndSend(CMD_STATUS_ERROR, command_get_outer_error());
+    Command_PackAndSend(CMD_STATUS_ERROR, command_get_tune_error());
 }
 
 static void send_text_status(void)
 {
     DVE_ChassisState_t chassis_state;
     APP_ChassisControlState_t control_state;
+    PID_t tune_pid;
+    float tune_error;
     char *p = s_text_tx_buf;
-        
+    
     DVE_Chassis_GetState(&chassis_state);
     APP_ChassisControl_GetState(&control_state);
+    command_get_tune_pid(&tune_pid); /* Kp、Ki、Kd一次读取 */
+    tune_error = command_get_tune_error();
+
+    p = append_str(p, "STAT,mode=");
+#if (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_LINE_FOLLOW)
+    p = append_str(p, "line_follow");
+#elif (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_GYRO_YAW)
+    p = append_str(p, "gyro");
+#elif (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_SPEED_TEST)
+    p = append_str(p, "speed_test");
+#else
+#error "Unsupported APP_CHASSIS_CONTROL_MODE"
+#endif
+    p = append_str(p, ",tune=");
+    p = append_str(p, APP_CMD_TUNE_TARGET_NAME);
+    p = append_str(p, "\r\nbase=");
+    p = append_f2(p, control_state.base_speed_cm_s);
+    p = append_str(p, ",kp=");
+    p = append_f2(p, tune_pid.Kp);
+    p = append_str(p, ",ki=");
+    p = append_f2(p, tune_pid.Ki);
+    p = append_str(p, ",kd=");
+    p = append_f2(p, tune_pid.Kd);
+    p = append_str(p, ",tune_err=");
+    p = append_f2(p, tune_error);
 
 #if (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_LINE_FOLLOW)
     {
-        APP_LineFollowState_t line_state;
+        APP_LineFollowState_t state;
 
-        APP_LineFollow_GetState(&line_state);
-        p = append_str(p, "STAT,mode=line_follow");
-        p = append_str(p, ",tune=");
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
-        p = append_str(p, "line");
-#else
-        p = append_str(p, "gyro");
-#endif
-        p = append_str(p, "\r\n");
-        p = append_str(p, "base=");
-        p = append_f2(p, control_state.base_speed_cm_s);
-        p = append_str(p, ",kp=");
-        p = append_f2(p, command_get_outer_kp());
-        p = append_str(p, ",ki=");
-        p = append_f2(p, command_get_outer_ki());
-        p = append_str(p, ",kd=");
-        p = append_f2(p, command_get_outer_kd());
-        p = append_str(p, "\r\nerr=");
-        p = append_f2(p, line_state.line_error);
+        APP_LineFollow_GetState(&state);
+        p = append_str(p, "\r\nline_err=");
+        p = append_f2(p, state.line_error);
         p = append_str(p, ",black=");
-        p = append_i32(p, (int32_t)line_state.black_count);
+        p = append_i32(p, (int32_t)state.black_count);
         p = append_str(p, ",lost=");
-        p = append_i32(p, line_state.is_lost ? 1 : 0);
+        p = append_i32(p, state.is_lost ? 1 : 0);
         p = append_str(p, ",search=");
-        p = append_i32(p, line_state.is_searching ? 1 : 0);
+        p = append_i32(p, state.is_searching ? 1 : 0);
         p = append_str(p, ",scale=");
-        p = append_f2(p, line_state.speed_scale);
+        p = append_f2(p, state.speed_scale);
     }
 #elif (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_GYRO_YAW)
     {
-        APP_GyroControlState_t gyro_state;
+        APP_GyroControlState_t state;
 
-        APP_GyroControl_GetState(&gyro_state);
-        p = append_str(p, "STAT,mode=gyro");
-        p = append_str(p, ",tune=");
-#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
-        p = append_str(p, "line");
-#else
-        p = append_str(p, "gyro");
-#endif
-        p = append_str(p, "\r\nbase=");
-        p = append_f2(p, control_state.base_speed_cm_s);
-        p = append_str(p, ",kp=");
-        p = append_f2(p, command_get_outer_kp());
-        p = append_str(p, ",ki=");
-        p = append_f2(p, command_get_outer_ki());
-        p = append_str(p, ",kd=");
-        p = append_f2(p, command_get_outer_kd());
+        APP_GyroControl_GetState(&state);
         p = append_str(p, "\r\nyaw=");
-        p = append_f2(p, gyro_state.yaw_deg);
+        p = append_f2(p, state.yaw_deg);
         p = append_str(p, ",roll=");
-        p = append_f2(p, gyro_state.roll_deg);
+        p = append_f2(p, state.roll_deg);
         p = append_str(p, ",pitch=");
-        p = append_f2(p, gyro_state.pitch_deg);
+        p = append_f2(p, state.pitch_deg);
         p = append_str(p, ",target=");
-        p = append_f2(p, gyro_state.target_yaw_deg);
-        p = append_str(p, ",err=");
-        p = append_f2(p, gyro_state.yaw_error_deg);
+        p = append_f2(p, state.target_yaw_deg);
+        p = append_str(p, ",yaw_err=");
+        p = append_f2(p, state.yaw_error_deg);
         p = append_str(p, ",ready=");
-        p = append_i32(p, gyro_state.imu_ready ? 1 : 0);
+        p = append_i32(p, state.imu_ready ? 1 : 0);
     }
+#elif (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_SPEED_TEST)
 #else
 #error "Unsupported APP_CHASSIS_CONTROL_MODE"
 #endif

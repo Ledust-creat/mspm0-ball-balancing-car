@@ -60,31 +60,47 @@ void DVE_IRSensor_Init(void)
 */
 void DVE_IRSensor_Read(DVE_IRSensor_t *sensor)
 {
+	if (sensor == 0) {
+        return;
+    }
     static const int8_t weights[DVE_IR_CHANNEL_NUM] = {-7, -5, -3, -1, 1, 3, 5, 7};
 
     int16_t weighted_sum = 0;
     uint8_t black_count = 0;
+	uint8_t raw[DVE_IR_CHANNEL_NUM];
+    
+	
+    raw[0] = read_ir_level(Digital_D1_PORT, Digital_D1_PIN);
+    raw[1] = read_ir_level(Digital_D2_PORT, Digital_D2_PIN);
+    raw[2] = read_ir_level(Digital_D3_PORT, Digital_D3_PIN);
+    raw[3] = read_ir_level(Digital_D4_PORT, Digital_D4_PIN);
+    raw[4] = read_ir_level(Digital_D5_PORT, Digital_D5_PIN);
+    raw[5] = read_ir_level(Digital_D6_PORT, Digital_D6_PIN);
+    raw[6] = read_ir_level(Digital_D7_PORT, Digital_D7_PIN);
+    raw[7] = read_ir_level(Digital_D8_PORT, Digital_D8_PIN);
 
-    if (sensor == 0) {
-        return;
-    }
+    
+	#if (DVE_IR_REVERSE_CHANNEL == 0U)
 
-    sensor->ch[0] = read_ir_level(Digital_D1_PORT, Digital_D1_PIN);
-    sensor->ch[1] = read_ir_level(Digital_D2_PORT, Digital_D2_PIN);
-    sensor->ch[2] = read_ir_level(Digital_D3_PORT, Digital_D3_PIN);
-    sensor->ch[3] = read_ir_level(Digital_D4_PORT, Digital_D4_PIN);
-    sensor->ch[4] = read_ir_level(Digital_D5_PORT, Digital_D5_PIN);
-    sensor->ch[5] = read_ir_level(Digital_D6_PORT, Digital_D6_PIN);
-    sensor->ch[6] = read_ir_level(Digital_D7_PORT, Digital_D7_PIN);
-    sensor->ch[7] = read_ir_level(Digital_D8_PORT, Digital_D8_PIN);
+	for(uint8_t i=0;i<DVE_IR_CHANNEL_NUM;i++)
+	{
+		sensor->ch[i]=raw[i];
+	}
+	
+	#else
 
-    for (uint8_t i = 0; i < DVE_IR_CHANNEL_NUM; i++) {
+	for(uint8_t i=0;i<DVE_IR_CHANNEL_NUM;i++)
+	{
+		sensor->ch[i]=raw[DVE_IR_CHANNEL_NUM-1-i];
+	}
+
+	#endif
+	for (uint8_t i = 0; i < DVE_IR_CHANNEL_NUM; i++) {
         if (sensor->ch[i]) {
             weighted_sum += weights[i];
             black_count++;
         }
     }
-
     sensor->black_count = black_count;
 
     if (black_count == 0U) {
@@ -93,12 +109,15 @@ void DVE_IRSensor_Read(DVE_IRSensor_t *sensor)
         sensor->is_lost = 1U;
         return;
     }
-
-    /*
-     * 第一版不除以black_count，保持偏差响应更明显。
-     * 后续如果车左右摆动明显，可以改成 weighted_sum / black_count。
-     */
+	
+#if (DVE_IR_ERROR_MODE == DVE_IR_ERROR_MODE_WEIGHTED_AVERAGE)
+    sensor->error = weighted_sum / (int16_t)black_count;
+    sensor->error_f = (float)weighted_sum / (float)black_count;
+#elif (DVE_IR_ERROR_MODE == DVE_IR_ERROR_MODE_WEIGHTED_SUM)
     sensor->error = weighted_sum;
     sensor->error_f = (float)weighted_sum;
+#else
+#error "Unsupported DVE_IR_ERROR_MODE"
+#endif
     sensor->is_lost = 0U;
 }

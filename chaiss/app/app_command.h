@@ -23,10 +23,39 @@ extern "C" {
 #define APP_CMD_ENABLE_WAVE_FRAME       (1U)        /* 1发送波形帧，0关闭 */
 #define APP_CMD_ENABLE_TEXT_STATUS      (1U)        /* 1发送文本状态，0关闭 */
 
-#define APP_CMD_TUNE_TARGET_LINE        (0U)        /* 调循迹外环PID */
-#define APP_CMD_TUNE_TARGET_GYRO        (1U)        /* 调陀螺仪yaw外环PID */
+/*
+*********************************************************************************************************
+*   蓝牙PID调参对象
+*
+*   APP_CMD_TUNE_TARGET_LINE          循迹外环
+*   APP_CMD_TUNE_TARGET_GYRO          陀螺仪航向外环
+*   APP_CMD_TUNE_TARGET_LEFT_SPEED    左轮速度内环
+*   APP_CMD_TUNE_TARGET_RIGHT_SPEED   右轮速度内环
+*********************************************************************************************************
+*/
+#define APP_CMD_TUNE_TARGET_LINE          (0U)
+#define APP_CMD_TUNE_TARGET_GYRO          (1U)
+#define APP_CMD_TUNE_TARGET_LEFT_SPEED    (2U)
+#define APP_CMD_TUNE_TARGET_RIGHT_SPEED   (3U)
+
+/* 只修改这里，即可切换蓝牙PID调参对象 */
 #ifndef APP_CMD_TUNE_TARGET
-#define APP_CMD_TUNE_TARGET             APP_CMD_TUNE_TARGET_GYRO
+#define APP_CMD_TUNE_TARGET APP_CMD_TUNE_TARGET_LINE
+#endif
+
+/*
+ * 文本回传中显示当前调参对象。
+ */
+#if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LINE)
+#define APP_CMD_TUNE_TARGET_NAME          "line"
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_GYRO)
+#define APP_CMD_TUNE_TARGET_NAME          "gyro"
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_LEFT_SPEED)
+#define APP_CMD_TUNE_TARGET_NAME          "left_speed"
+#elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_RIGHT_SPEED)
+#define APP_CMD_TUNE_TARGET_NAME          "right_speed"
+#else
+#error "Unsupported APP_CMD_TUNE_TARGET"
 #endif
 
 #define CMD_START                       (0x01U)     /* 启动运行 */

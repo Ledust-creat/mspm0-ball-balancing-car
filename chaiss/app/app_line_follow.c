@@ -7,22 +7,23 @@
 *********************************************************************************************************
 */
 #define APP_LINE_FOLLOW_PERIOD_MS              (20U)       /* 循迹外环周期 */
-#define APP_LINE_FOLLOW_LOST_TIMEOUT_MS        (1000U)      /* 丢线找线超时时间 */
+#define APP_LINE_FOLLOW_LOST_TIMEOUT_MS        (3000U)      /* 丢线找线超时时间 */
 #define APP_LINE_FOLLOW_LOST_TIMEOUT_TICKS     \
     (APP_LINE_FOLLOW_LOST_TIMEOUT_MS / APP_LINE_FOLLOW_PERIOD_MS)
 
 #define APP_LINE_FOLLOW_DEFAULT_KP             (3.5f)      /* 循迹外环初始Kp */
 #define APP_LINE_FOLLOW_DEFAULT_KI             (0.0f)      /* 循迹外环初始Ki */
-#define APP_LINE_FOLLOW_DEFAULT_KD             (2.0f)      /* 循迹外环初始Kd */
-#define APP_LINE_FOLLOW_MAX_CORRECTION_CM_S    (25.0f)     /* 转向修正速度限幅 */
+#define APP_LINE_FOLLOW_DEFAULT_KD             (0.0f)      /* 循迹外环初始Kd */
+#define APP_LINE_FOLLOW_MAX_CORRECTION_CM_S    (30.0f)     /* 转向修正速度限幅 */
 
 #define APP_LINE_FOLLOW_NORMAL_SPEED_SCALE     (1.00f)     /* 正常速度比例 */
-#define APP_LINE_FOLLOW_OUTER_SPEED_SCALE      (0.10f)     /* 最外侧传感器触发速度比例 */
-#define APP_LINE_FOLLOW_INNER_SPEED_SCALE      (0.20f)     /* 次外侧传感器触发速度比例 */
-#define APP_LINE_FOLLOW_SEARCH_SPEED_SCALE     (0.10f)     /* 丢线找线速度比例 */
+#define APP_LINE_FOLLOW_INNER2_SPEED_SCALE     (0.75f)     /* 次次外侧传感器触发速度比例 */
+#define APP_LINE_FOLLOW_INNER_SPEED_SCALE      (0.55f)     /* 次外侧传感器触发速度比例 */
+#define APP_LINE_FOLLOW_OUTER_SPEED_SCALE      (0.35f)     /* 最外侧传感器触发速度比例 */
+#define APP_LINE_FOLLOW_SEARCH_SPEED_SCALE     (0.15f)     /* 丢线找线速度比例 */
 #define APP_LINE_FOLLOW_MIN_SEARCH_CORRECTION  (1.0f)      /* 有效转向记忆阈值 */
 
-/*
+/*  
 *********************************************************************************************************
 *   全局变量
 *********************************************************************************************************
@@ -78,6 +79,9 @@ static float calc_speed_scale(const DVE_IRSensor_t *sensor)
         return APP_LINE_FOLLOW_INNER_SPEED_SCALE;
     }
 
+    if ((sensor->ch[2] != 0U) || (sensor->ch[5] != 0U)) {
+        return APP_LINE_FOLLOW_INNER2_SPEED_SCALE;
+    }
     return APP_LINE_FOLLOW_NORMAL_SPEED_SCALE;
 }
 

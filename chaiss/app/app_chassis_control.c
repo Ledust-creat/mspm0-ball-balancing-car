@@ -1,5 +1,6 @@
 #include "app_chassis_control.h"
 #include "app_gyro_control.h"
+#include "app_command.h"    
 #include "app_line_follow.h"
 #include "dve_chassis.h"
 
@@ -51,9 +52,17 @@ static void stop_chassis_target(void)
 static void reset_active_outer_loop(void)
 {
 #if (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_LINE_FOLLOW)
+
     APP_LineFollow_Reset();
+
 #elif (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_GYRO_YAW)
+
     APP_GyroControl_SetZero();
+
+#elif (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_SPEED_TEST)
+
+    /* 纯速度环测试没有外环状态需要复位 */
+
 #else
 #error "Unsupported APP_CHASSIS_CONTROL_MODE"
 #endif
@@ -125,6 +134,11 @@ void APP_ChassisControl_Task(void)
         steering_correction_cm_s = gyro_output.steering_correction_cm_s;
         should_stop = gyro_output.should_stop;
     }
+#elif (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_SPEED_TEST)
+
+    run_base_speed_cm_s = s_base_speed_cm_s; /* 使用蓝牙设置的基础速度 */
+    steering_correction_cm_s = 0.0f;         /* 强制关闭所有外环差速 */
+    should_stop = false;                     /* 不受IMU或循迹传感器影响 */
 #else
 #error "Unsupported APP_CHASSIS_CONTROL_MODE"
 #endif
@@ -136,10 +150,15 @@ void APP_ChassisControl_Task(void)
         s_is_running = false;
     } else {
         s_last_steering_correction_cm_s = steering_correction_cm_s;
-
-        DVE_Chassis_SetTraceSpeedCmps(run_base_speed_cm_s, s_last_steering_correction_cm_s);
+        #if (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_SPEED_TEST)
+            /* 纯速度测试时，左右轮目标速度完全相同 */
+            DVE_Chassis_SetSpeedTargetCmps(run_base_speed_cm_s,run_base_speed_cm_s);
+        #else
+            /* 循迹和航向模式通过差速控制方向 */
+            DVE_Chassis_SetTraceSpeedCmps(run_base_speed_cm_s,s_last_steering_correction_cm_s);
+        #endif
     }
-    
+
     DVE_Chassis_Update20ms();
 }
 
@@ -171,7 +190,7 @@ void APP_ChassisControl_GetState(APP_ChassisControlState_t *state)
     if (state == 0) {
         return;
     }
-
+    
     state->base_speed_cm_s = s_base_speed_cm_s;
     state->steering_correction_cm_s = s_last_steering_correction_cm_s;
     state->control_mode = APP_CHASSIS_CONTROL_MODE;

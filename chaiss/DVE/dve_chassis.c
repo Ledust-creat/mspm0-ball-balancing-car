@@ -16,12 +16,12 @@
 #define DVE_CHASSIS_DEFAULT_RIGHT_SIGN      (-1)        /* 右电机方向修正 */
 #endif
 
-#define DVE_CHASSIS_LEFT_SPEED_KP           (36.0f)     /* 左轮速度环初始Kp */
-#define DVE_CHASSIS_LEFT_SPEED_KI           (1.52f)      /* 左轮速度环初始Ki */
+#define DVE_CHASSIS_LEFT_SPEED_KP           (60.0f)     /* 左轮速度环初始Kp */
+#define DVE_CHASSIS_LEFT_SPEED_KI           (6.0f)      /* 左轮速度环初始Ki */
 #define DVE_CHASSIS_LEFT_SPEED_KD           (0.0f)      /* 左轮速度环初始Kd */
 
-#define DVE_CHASSIS_RIGHT_SPEED_KP          (35.0f)     /* 右轮速度环初始Kp */
-#define DVE_CHASSIS_RIGHT_SPEED_KI          (1.46f)      /* 右轮速度环初始Ki */
+#define DVE_CHASSIS_RIGHT_SPEED_KP          (60.0f)     /* 右轮速度环初始Kp */
+#define DVE_CHASSIS_RIGHT_SPEED_KI          (5.9f)      /* 右轮速度环初始Ki */
 #define DVE_CHASSIS_RIGHT_SPEED_KD          (0.0f)      /* 右轮速度环初始Kd */
 
 #define DVE_CHASSIS_SPEED_PID_MAX_IOUT      (1000.0f)   /* 速度环积分限幅 */

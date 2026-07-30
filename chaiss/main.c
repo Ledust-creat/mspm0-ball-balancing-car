@@ -31,7 +31,6 @@ int main(void)
     APP_K230Input_Init();
     APP_CompetitionMenu_Init();
     APP_Scheduler_Init();
-
     while (1) {
         APP_Scheduler_RunOnce();
     }

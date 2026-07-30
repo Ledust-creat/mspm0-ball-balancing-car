@@ -11,9 +11,9 @@
 #define APP_LINE_FOLLOW_LOST_TIMEOUT_TICKS     \
     (APP_LINE_FOLLOW_LOST_TIMEOUT_MS / APP_LINE_FOLLOW_PERIOD_MS)
 
-#define APP_LINE_FOLLOW_DEFAULT_KP             (3.7f)      /* 循迹外环初始Kp */
+#define APP_LINE_FOLLOW_DEFAULT_KP             (3.72f)      /* 循迹外环初始Kp */
 #define APP_LINE_FOLLOW_DEFAULT_KI             (0.0f)      /* 循迹外环初始Ki */
-#define APP_LINE_FOLLOW_DEFAULT_KD             (35.0f)      /* 循迹外环初始Kd */
+#define APP_LINE_FOLLOW_DEFAULT_KD             (60.0f)      /* 循迹外环初始Kd */
 #define APP_LINE_FOLLOW_MAX_CORRECTION_CM_S    (30.0f)     /* 转向修正速度限幅 */
 
 #define APP_LINE_FOLLOW_NORMAL_SPEED_SCALE     (1.00f)     /* 正常速度比例 */

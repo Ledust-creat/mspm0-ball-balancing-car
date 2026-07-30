@@ -21,7 +21,7 @@ extern "C" {
 #define APP_CMD_ENABLE_ACK_FRAME             (0U)
 #define APP_CMD_ENABLE_ERR_FRAME             (0U)
 #define APP_CMD_ENABLE_WAVE_FRAME            (0U)
-#define APP_CMD_ENABLE_TEXT_STATUS           (0U)
+#define APP_CMD_ENABLE_TEXT_STATUS           (1U)
 
 #define APP_CMD_TUNE_TARGET_LINE             (0U)
 #define APP_CMD_TUNE_TARGET_GYRO             (1U)

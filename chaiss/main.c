@@ -4,18 +4,14 @@
 #include "app_command.h"
 #include "app_competition_menu.h"
 #include "app_gyro_control.h"
+#include "app_k230_input.h"
 #include "app_line_follow.h"
+#include "app_scheduler.h"
 #include "bsp_bluetooth.h"
 #include "bsp_key.h"
+#include "bsp_k230_uart.h"
 #include "dve_chassis.h"
 #include "OLED.h"
-
-/*
-*********************************************************************************************************
-*   全局变量
-*********************************************************************************************************
-*/
-static APP_CompetitionMode_t s_current_comp_mode = APP_COMP_MODE_TRACK_LAP; /* 当前菜单选择模式 */
 
 int main(void)
 {
@@ -26,28 +22,17 @@ int main(void)
     BSP_Key_Init();
 
     Bluetooth_Init();
+    BSP_K230Uart_Init();
     DVE_Chassis_Init();
     APP_LineFollow_Init();
     APP_GyroControl_Init();
     APP_ChassisControl_Init();
     APP_BallControl_Init();
+    APP_K230Input_Init();
     APP_CompetitionMenu_Init();
-	
+    APP_Scheduler_Init();
+
     while (1) {
-        APP_Command_Task();
-        APP_ChassisControl_Task();
-        APP_BallControl_Task();
-        APP_CompetitionMenu_Task();
-
-        if (APP_CompetitionMenu_ConsumeStartRequest(&s_current_comp_mode)) {
-            /*
-             * 当前只保存模式，后续由比赛控制APP接管具体小题启动。
-             */
-        }
-
-        if (APP_CompetitionMenu_ConsumeStopRequest()) {
-            APP_ChassisControl_Stop();
-            APP_BallControl_SetEnable(0U);
-        }
+        APP_Scheduler_RunOnce();
     }
 }

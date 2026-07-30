@@ -562,6 +562,26 @@
               <FileType>5</FileType>
               <FilePath>..\app\app_competition_menu.h</FilePath>
             </File>
+            <File>
+              <FileName>app_k230_input.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\app_k230_input.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_k230_input.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\app_k230_input.h</FilePath>
+            </File>
+            <File>
+              <FileName>app_scheduler.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\app_scheduler.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_scheduler.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\app_scheduler.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -631,6 +651,16 @@
               <FileName>bsp_key.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\BSP\bsp_key.h</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_k230_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\bsp_k230_uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_k230_uart.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\BSP\bsp_k230_uart.h</FilePath>
             </File>
           </Files>
         </Group>

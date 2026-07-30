@@ -3,6 +3,6 @@
 
 #include <stdint.h>
 
-uint64_t Get_Tick(void);
+uint32_t Get_Tick(void);
 
 #endif

@@ -8,13 +8,11 @@
 *   宏定义
 *********************************************************************************************************
 */
-#define APP_MENU_FRAME_MS               (20U)       /* UI低优先级框架周期 */
-#define APP_MENU_KEY_SCAN_MS            (10U)       /* 按键扫描周期 */
-#define APP_MENU_OLED_PHASE_MS          (13U)       /* OLED刷新相位 */
-#define APP_MENU_RUN_REFRESH_MS         (200U)      /* 运行页面刷新周期 */
-#define APP_MENU_COUNTDOWN_MS           (3000U)     /* 倒计时时长 */
-#define APP_MENU_DEBOUNCE_COUNT         (3U)        /* 消抖连续稳定次数 */
-#define APP_MENU_LINE_WIDTH             (16U)       /* OLED一行字符数 */
+#define APP_MENU_KEY_SCAN_MS             (10U)      /* 菜单按键扫描周期，单位ms */
+#define APP_MENU_RUN_TIME_REFRESH_MS     (100U)     /* RUN页时间数字刷新周期，单位ms */
+#define APP_MENU_COUNTDOWN_MS            (3000U)    /* 倒计时时长，单位ms */
+#define APP_MENU_DEBOUNCE_COUNT          (3U)       /* 按键消抖连续稳定次数，单位次 */
+#define APP_MENU_LINE_WIDTH              (16U)      /* OLED一行字符数，单位char */
 
 /*
 *********************************************************************************************************
@@ -23,10 +21,10 @@
 */
 typedef struct
 {
-    bool raw_last;                       /* 上一次原始状态 */
-    bool stable_state;                   /* 消抖后的稳定状态 */
-    uint8_t stable_count;                /* 连续相同计数 */
-    bool pressed_event;                  /* 单次按下事件 */
+    bool raw_last;                        /* 上一次原始按键状态，true表示按下 */
+    bool stable_state;                    /* 消抖后的稳定状态，true表示按下 */
+    uint8_t stable_count;                 /* 连续相同采样次数 */
+    bool pressed_event;                   /* 单次按下事件，消费后清除 */
 } APP_KeyFilter_t;
 
 /*
@@ -42,25 +40,26 @@ static const char * const s_mode_name_table[APP_COMP_MODE_COUNT] = {
     "LAP TARGET"
 };
 
-static APP_KeyFilter_t s_select_key;
-static APP_KeyFilter_t s_confirm_key;
+static APP_KeyFilter_t s_select_key;              /* SELECT按键消抖状态 */
+static APP_KeyFilter_t s_confirm_key;             /* CONFIRM按键消抖状态 */
 
-static APP_CompetitionMode_t s_selected_mode;
-static APP_CompetitionUiState_t s_ui_state;
+static APP_CompetitionMode_t s_selected_mode;     /* 当前选中的比赛小题 */
+static APP_CompetitionUiState_t s_ui_state;       /* 当前OLED菜单状态 */
 
-static bool s_start_request;
-static bool s_stop_request;
-static bool s_oled_dirty;
-static bool s_oled_full_redraw;
-static bool s_countdown_cancel_armed;
+static bool s_start_request;                      /* 倒计时结束产生的一次性启动请求 */
+static bool s_stop_request;                       /* 用户停止产生的一次性停止请求 */
+static bool s_oled_dirty;                         /* 非RUN页面需要整页刷新标志 */
+static bool s_oled_full_redraw;                   /* 页面切换整页重绘标志 */
+static bool s_countdown_cancel_armed;             /* 倒计时取消按键使能，需先松开确认键 */
+static bool s_run_page_initialized;               /* RUN固定页面是否已绘制 */
 
-static uint8_t s_fault_code;
-static uint8_t s_last_countdown_number;
-static uint64_t s_countdown_start_ms;
-static uint64_t s_running_start_ms;
-static uint64_t s_last_key_scan_ms;
-static uint64_t s_last_oled_frame;
-static uint64_t s_last_run_refresh_ms;
+static uint8_t s_fault_code;                      /* 外部通知故障码 */
+static uint8_t s_last_countdown_number;           /* 上一次显示的倒计时数字 */
+static uint32_t s_countdown_start_ms;             /* 倒计时开始时刻，单位ms */
+static uint32_t s_running_start_ms;               /* 当前小题运行开始时刻，单位ms */
+static uint32_t s_last_key_scan_ms;               /* 最近一次按键扫描时刻，单位ms */
+static uint32_t s_last_time_update_ms;            /* 最近一次RUN时间数字刷新时刻，单位ms */
+static uint32_t s_last_display_time_ds;           /* 上一次OLED显示的0.1s计时值 */
 
 /*
 *********************************************************************************************************
@@ -69,15 +68,17 @@ static uint64_t s_last_run_refresh_ms;
 */
 static void key_filter_update(APP_KeyFilter_t *key, bool raw_pressed);
 static void menu_scan_keys(void);
-static void menu_update_state(uint64_t now_ms);
+static void menu_update_state(uint32_t now_ms);
 static void menu_enter_select(void);
-static void menu_enter_countdown(uint64_t now_ms);
-static void menu_enter_running(uint64_t now_ms);
+static void menu_enter_countdown(uint32_t now_ms);
+static void menu_enter_running(uint32_t now_ms);
 static void menu_mark_full_redraw(void);
-static void menu_draw_current_page(uint64_t now_ms);
+static void menu_draw_current_page(uint32_t now_ms);
+static void menu_draw_running_page_once(void);
+static void menu_update_running_time_digits(uint32_t now_ms);
 static void menu_show_line(uint8_t line, const char *text);
-static uint8_t menu_get_countdown_number(uint64_t now_ms);
-static uint32_t menu_get_run_time_ds(uint64_t now_ms);
+static uint8_t menu_get_countdown_number(uint32_t now_ms);
+static uint32_t menu_get_run_time_ds(uint32_t now_ms);
 static void menu_append_u32(char *buf, uint32_t value, uint8_t width);
 
 /*
@@ -92,8 +93,7 @@ static void key_filter_update(APP_KeyFilter_t *key, bool raw_pressed)
 {
     bool old_stable;
 
-    key->pressed_event = false; // 每次采样只允许重新产生一次事件
-
+    key->pressed_event = false;
     if (raw_pressed == key->raw_last) {
         if (key->stable_count < APP_MENU_DEBOUNCE_COUNT) {
             key->stable_count++;
@@ -107,7 +107,7 @@ static void key_filter_update(APP_KeyFilter_t *key, bool raw_pressed)
         (raw_pressed != key->stable_state)) {
         old_stable = key->stable_state;
         key->stable_state = raw_pressed;
-        key->pressed_event = (!old_stable && key->stable_state); // 只在松开到按下时触发
+        key->pressed_event = (!old_stable && key->stable_state);
     }
 }
 
@@ -136,6 +136,7 @@ static void menu_scan_keys(void)
 static void menu_enter_select(void)
 {
     s_ui_state = APP_COMP_UI_SELECT;
+    s_run_page_initialized = false;
     menu_mark_full_redraw();
 }
 
@@ -143,16 +144,17 @@ static void menu_enter_select(void)
 *********************************************************************************************************
 *   函 数 名: menu_enter_countdown
 *   功能说明: 进入3秒倒计时页面
-*   形    参: now_ms - 当前系统时间
+*   形    参: now_ms - 当前系统时间，单位ms
 *   返 回 值: 无
 *********************************************************************************************************
 */
-static void menu_enter_countdown(uint64_t now_ms)
+static void menu_enter_countdown(uint32_t now_ms)
 {
     s_ui_state = APP_COMP_UI_COUNTDOWN;
     s_countdown_start_ms = now_ms;
     s_last_countdown_number = 0U;
     s_countdown_cancel_armed = false;
+    s_run_page_initialized = false;
     menu_mark_full_redraw();
 }
 
@@ -160,15 +162,17 @@ static void menu_enter_countdown(uint64_t now_ms)
 *********************************************************************************************************
 *   函 数 名: menu_enter_running
 *   功能说明: 进入运行页面并产生一次启动请求
-*   形    参: now_ms - 当前系统时间
+*   形    参: now_ms - 当前系统时间，单位ms
 *   返 回 值: 无
 *********************************************************************************************************
 */
-static void menu_enter_running(uint64_t now_ms)
+static void menu_enter_running(uint32_t now_ms)
 {
     s_ui_state = APP_COMP_UI_RUNNING;
     s_running_start_ms = now_ms;
-    s_last_run_refresh_ms = now_ms;
+    s_last_time_update_ms = now_ms;
+    s_last_display_time_ds = UINT32_MAX;
+    s_run_page_initialized = false;
     s_start_request = true;
     menu_mark_full_redraw();
 }
@@ -176,7 +180,7 @@ static void menu_enter_running(uint64_t now_ms)
 /*
 *********************************************************************************************************
 *   函 数 名: menu_mark_full_redraw
-*   功能说明: 标记OLED需要整页重画
+*   功能说明: 标记OLED需要整页重绘
 *   形    参: 无
 *   返 回 值: 无
 *********************************************************************************************************
@@ -191,11 +195,11 @@ static void menu_mark_full_redraw(void)
 *********************************************************************************************************
 *   函 数 名: menu_update_state
 *   功能说明: 更新菜单状态机和OLED脏标志
-*   形    参: now_ms - 当前系统时间
+*   形    参: now_ms - 当前系统时间，单位ms
 *   返 回 值: 无
 *********************************************************************************************************
 */
-static void menu_update_state(uint64_t now_ms)
+static void menu_update_state(uint32_t now_ms)
 {
     uint8_t countdown_number;
 
@@ -219,7 +223,7 @@ static void menu_update_state(uint64_t now_ms)
 
             if (!s_countdown_cancel_armed) {
                 if (!s_select_key.stable_state && !s_confirm_key.stable_state) {
-                    s_countdown_cancel_armed = true; // 进入倒计时后需先松开按键，再允许取消
+                    s_countdown_cancel_armed = true;
                 }
             } else if (s_select_key.stable_state) {
                 menu_enter_select();
@@ -227,7 +231,7 @@ static void menu_update_state(uint64_t now_ms)
                 s_start_request = false;
                 s_stop_request = true;
                 menu_enter_select();
-            } else if ((now_ms - s_countdown_start_ms) >= APP_MENU_COUNTDOWN_MS) {
+            } else if ((uint32_t)(now_ms - s_countdown_start_ms) >= APP_MENU_COUNTDOWN_MS) {
                 menu_enter_running(now_ms);
             }
             break;
@@ -236,9 +240,6 @@ static void menu_update_state(uint64_t now_ms)
             if (s_confirm_key.pressed_event) {
                 s_stop_request = true;
                 menu_enter_select();
-            } else if ((now_ms - s_last_run_refresh_ms) >= APP_MENU_RUN_REFRESH_MS) {
-                s_last_run_refresh_ms = now_ms;
-                s_oled_dirty = true;
             }
             break;
 
@@ -263,7 +264,7 @@ static void menu_update_state(uint64_t now_ms)
             break;
     }
 
-    s_select_key.pressed_event = false; // 状态机消费后立即清除事件
+    s_select_key.pressed_event = false;
     s_confirm_key.pressed_event = false;
 }
 
@@ -296,13 +297,13 @@ static void menu_show_line(uint8_t line, const char *text)
 *********************************************************************************************************
 *   函 数 名: menu_get_countdown_number
 *   功能说明: 获取当前倒计时显示数字
-*   形    参: now_ms - 当前系统时间
+*   形    参: now_ms - 当前系统时间，单位ms
 *   返 回 值: 1~3
 *********************************************************************************************************
 */
-static uint8_t menu_get_countdown_number(uint64_t now_ms)
+static uint8_t menu_get_countdown_number(uint32_t now_ms)
 {
-    uint64_t elapsed_ms = now_ms - s_countdown_start_ms;
+    uint32_t elapsed_ms = now_ms - s_countdown_start_ms;
     uint8_t elapsed_s = (uint8_t)(elapsed_ms / 1000U);
 
     if (elapsed_s >= 3U) {
@@ -315,12 +316,12 @@ static uint8_t menu_get_countdown_number(uint64_t now_ms)
 /*
 *********************************************************************************************************
 *   函 数 名: menu_get_run_time_ds
-*   功能说明: 获取运行时间，单位0.1秒
-*   形    参: now_ms - 当前系统时间
+*   功能说明: 获取运行时间，单位0.1s
+*   形    参: now_ms - 当前系统时间，单位ms
 *   返 回 值: 运行时间0.1秒计数
 *********************************************************************************************************
 */
-static uint32_t menu_get_run_time_ds(uint64_t now_ms)
+static uint32_t menu_get_run_time_ds(uint32_t now_ms)
 {
     return (uint32_t)((now_ms - s_running_start_ms) / 100U);
 }
@@ -345,19 +346,75 @@ static void menu_append_u32(char *buf, uint32_t value, uint8_t width)
 
 /*
 *********************************************************************************************************
-*   函 数 名: menu_draw_current_page
-*   功能说明: 根据当前状态刷新OLED页面
-*   形    参: now_ms - 当前系统时间
+*   函 数 名: menu_draw_running_page_once
+*   功能说明: 首次进入RUN时绘制固定文本，后续只刷新时间数字
+*   形    参: 无
 *   返 回 值: 无
 *********************************************************************************************************
 */
-static void menu_draw_current_page(uint64_t now_ms)
+static void menu_draw_running_page_once(void)
+{
+    OLED_Clear();
+    menu_show_line(1U, s_mode_name_table[s_selected_mode]);
+    menu_show_line(2U, "TIME: 000.0s");
+    menu_show_line(3U, "STATE: RUN");
+    menu_show_line(4U, "OK: STOP");
+    s_run_page_initialized = true;
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: menu_update_running_time_digits
+*   功能说明: 只更新RUN页面TIME后的数字区域
+*   形    参: now_ms - 当前系统时间，单位ms
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+static void menu_update_running_time_digits(uint32_t now_ms)
+{
+    uint32_t elapsed_ds;
+    uint32_t seconds;
+    uint32_t tenths;
+
+    if ((uint32_t)(now_ms - s_last_time_update_ms) < APP_MENU_RUN_TIME_REFRESH_MS) {
+        return;
+    }
+    s_last_time_update_ms = now_ms;
+
+    elapsed_ds = menu_get_run_time_ds(now_ms);
+    if (elapsed_ds == s_last_display_time_ds) {
+        return;
+    }
+
+    s_last_display_time_ds = elapsed_ds;
+    seconds = elapsed_ds / 10U;
+    tenths = elapsed_ds % 10U;
+
+    if (seconds > 999U) {
+        seconds = 999U;
+    }
+
+    OLED_ShowNum(2U, 7U, seconds, 3U);
+    OLED_ShowChar(2U, 10U, '.');
+    OLED_ShowNum(2U, 11U, tenths, 1U);
+    OLED_ShowChar(2U, 12U, 's');
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: menu_draw_current_page
+*   功能说明: 根据当前状态刷新OLED非RUN页面
+*   形    参: now_ms - 当前系统时间，单位ms
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+static void menu_draw_current_page(uint32_t now_ms)
 {
     char line[APP_MENU_LINE_WIDTH + 1U] = {0};
     uint32_t run_ds;
 
     if (s_oled_full_redraw) {
-        OLED_Clear(); // 只在页面切换时清屏
+        OLED_Clear();
         s_oled_full_redraw = false;
     }
 
@@ -395,24 +452,6 @@ static void menu_draw_current_page(uint64_t now_ms)
             menu_show_line(2U, line);
             menu_show_line(3U, "PLEASE WAIT");
             menu_show_line(4U, "SEL/OK:CANCEL");
-            break;
-
-        case APP_COMP_UI_RUNNING:
-            run_ds = menu_get_run_time_ds(now_ms);
-            menu_show_line(1U, "RUN");
-            line[0] = 'T';
-            line[1] = 'I';
-            line[2] = 'M';
-            line[3] = 'E';
-            line[4] = ':';
-            line[5] = ' ';
-            menu_append_u32(&line[6], run_ds / 10U, 3U);
-            line[9] = '.';
-            line[10] = (char)('0' + (run_ds % 10U));
-            line[11] = 's';
-            menu_show_line(2U, line);
-            menu_show_line(3U, "STATE: RUN");
-            menu_show_line(4U, "OK:STOP");
             break;
 
         case APP_COMP_UI_FINISHED:
@@ -477,45 +516,84 @@ void APP_CompetitionMenu_Init(void)
     s_ui_state = APP_COMP_UI_SELECT;
     s_start_request = false;
     s_stop_request = false;
+    s_oled_dirty = false;
+    s_oled_full_redraw = false;
     s_countdown_cancel_armed = false;
+    s_run_page_initialized = false;
     s_fault_code = 0U;
     s_last_countdown_number = 0U;
     s_countdown_start_ms = 0U;
     s_running_start_ms = 0U;
     s_last_key_scan_ms = 0U;
-    s_last_oled_frame = 0U;
-    s_last_run_refresh_ms = 0U;
+    s_last_time_update_ms = 0U;
+    s_last_display_time_ds = UINT32_MAX;
     menu_mark_full_redraw();
 }
 
 /*
 *********************************************************************************************************
 *   函 数 名: APP_CompetitionMenu_Task
-*   功能说明: 执行按键扫描、菜单状态机和OLED相位刷新
+*   功能说明: 执行按键扫描、菜单状态机和OLED刷新
 *   形    参: 无
 *   返 回 值: 无
 *********************************************************************************************************
 */
 void APP_CompetitionMenu_Task(void)
 {
-    uint64_t now_ms = Get_Tick();
-    uint64_t oled_frame = now_ms / APP_MENU_FRAME_MS;
-    uint8_t phase_ms = (uint8_t)(now_ms % APP_MENU_FRAME_MS);
+    APP_CompetitionMenu_UpdateTask();
+    APP_CompetitionMenu_DisplayTask();
+}
 
-    if ((now_ms - s_last_key_scan_ms) >= APP_MENU_KEY_SCAN_MS) {
+/*
+*********************************************************************************************************
+*   函 数 名: APP_CompetitionMenu_UpdateTask
+*   功能说明: 扫描按键并更新菜单状态，不访问OLED
+*   形    参: 无
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_CompetitionMenu_UpdateTask(void)
+{
+    uint32_t now_ms = Get_Tick();
+
+    if ((uint32_t)(now_ms - s_last_key_scan_ms) >= APP_MENU_KEY_SCAN_MS) {
         s_last_key_scan_ms = now_ms;
         menu_scan_keys();
     }
 
     menu_update_state(now_ms);
+}
 
-    if (s_oled_dirty &&
-        (phase_ms >= APP_MENU_OLED_PHASE_MS) &&
-        (oled_frame != s_last_oled_frame)) {
-        s_last_oled_frame = oled_frame;
-        s_oled_dirty = false;
-        menu_draw_current_page(now_ms);
+/*
+*********************************************************************************************************
+*   函 数 名: APP_CompetitionMenu_DisplayTask
+*   功能说明: 根据页面状态低优先级刷新OLED
+*   形    参: 无
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_CompetitionMenu_DisplayTask(void)
+{
+    uint32_t now_ms = Get_Tick();
+
+    if (s_ui_state == APP_COMP_UI_RUNNING) {
+        if (!s_run_page_initialized || s_oled_full_redraw) {
+            menu_draw_running_page_once();
+            s_oled_full_redraw = false;
+            s_oled_dirty = false;
+            s_last_display_time_ds = UINT32_MAX;
+        }
+
+        menu_update_running_time_digits(now_ms);
+        return;
     }
+
+    if (!s_oled_dirty) {
+        return;
+    }
+
+    s_oled_dirty = false;
+    menu_draw_current_page(now_ms);
 }
 
 /*
@@ -569,6 +647,7 @@ bool APP_CompetitionMenu_ConsumeStopRequest(void)
 void APP_CompetitionMenu_NotifyFinished(void)
 {
     s_ui_state = APP_COMP_UI_FINISHED;
+    s_run_page_initialized = false;
     menu_mark_full_redraw();
 }
 
@@ -584,30 +663,15 @@ void APP_CompetitionMenu_NotifyFault(uint8_t fault_code)
 {
     s_fault_code = fault_code;
     s_ui_state = APP_COMP_UI_FAULT;
+    s_run_page_initialized = false;
     menu_mark_full_redraw();
 }
 
-/*
-*********************************************************************************************************
-*   函 数 名: APP_CompetitionMenu_GetSelectedMode
-*   功能说明: 获取当前选择的小题模式
-*   形    参: 无
-*   返 回 值: 当前小题模式
-*********************************************************************************************************
-*/
 APP_CompetitionMode_t APP_CompetitionMenu_GetSelectedMode(void)
 {
     return s_selected_mode;
 }
 
-/*
-*********************************************************************************************************
-*   函 数 名: APP_CompetitionMenu_GetUiState
-*   功能说明: 获取当前菜单UI状态
-*   形    参: 无
-*   返 回 值: 当前UI状态
-*********************************************************************************************************
-*/
 APP_CompetitionUiState_t APP_CompetitionMenu_GetUiState(void)
 {
     return s_ui_state;

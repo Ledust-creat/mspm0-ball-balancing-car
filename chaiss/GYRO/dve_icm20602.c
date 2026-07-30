@@ -37,6 +37,8 @@
 #define ICM20602_POWER_ON_DELAY_MS             (200U)
 #define ICM20602_WHO_AM_I_RETRY_TIMES          (5U)
 #define ICM20602_WHO_AM_I_RETRY_PERIOD_MS      (20U)
+#define ICM20602_ACCEL_XY_CALIB_TIMES          (100U)
+#define ICM20602_ACCEL_XY_CALIB_PERIOD_MS      (2U)
 
 /*
 *********************************************************************************************************
@@ -86,16 +88,28 @@ static float s_integral_z = 0.0f;               /* Mahony积分项Z */
 *   函数声明
 *********************************************************************************************************
 */
+static float s_accel_x_offset_g = 0.0f;         /* 传感器X轴静态加速度零偏 */
+static float s_accel_y_offset_g = 0.0f;         /* 传感器Y轴静态加速度零偏 */
+static float s_accel_x_filter_g = 0.0f;         /* 车体X轴动态加速度低通结果 */
+static float s_accel_y_filter_g = 0.0f;         /* 车体Y轴动态加速度低通结果 */
+static float s_mount_yaw_sin = 0.0f;            /* 固定安装偏角sin值 */
+static float s_mount_yaw_cos = 1.0f;            /* 固定安装偏角cos值 */
+
 static void icm20602_write_reg(uint8_t reg, uint8_t data);
 static uint8_t icm20602_read_reg(uint8_t reg);
 static void icm20602_read_bytes(uint8_t reg, uint8_t *buffer, uint16_t len);
 static void icm20602_read_raw(ICM20602Raw_t *raw);
+static void icm20602_read_accel_xy_raw(int16_t *raw_x, int16_t *raw_y);
 static void icm20602_read_data(ICM20602Data_t *data);
 static ICM20602Data_t icm20602_axis_map(ICM20602Data_t data);
+static void icm20602_map_install_direction(float sensor_x_g, float sensor_y_g,
+                                           float *mapped_x_g, float *mapped_y_g);
+static void icm20602_rotate_to_car_frame(float mapped_x_g, float mapped_y_g,
+                                         float *car_x_g, float *car_y_g);
+static void calibrate_accel_xy(void);
 static int16_t make_i16(uint8_t high, uint8_t low);
 static float wrap_180(float angle);
 static float apply_deadband(float gyro_dps);
-static float reverse_sign(uint8_t reverse);
 static float inv_sqrt(float x);
 static float limit_float(float value, float min, float max);
 static void calc_accel_attitude(const ICM20602Data_t *data, float *roll_deg, float *pitch_deg);
@@ -377,6 +391,112 @@ static void icm20602_read_raw(ICM20602Raw_t *raw)
     raw->gyro_z  = make_i16(buffer[12], buffer[13]);
 }
 
+/*
+*********************************************************************************************************
+*   函 数 名: icm20602_read_accel_xy_raw
+*   功能说明: 从ACCEL_XOUT_H开始只读取X/Y轴4字节原始加速度
+*   形    参: raw_x - X轴原始值；raw_y - Y轴原始值
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+static void icm20602_read_accel_xy_raw(int16_t *raw_x, int16_t *raw_y)
+{
+    uint8_t buffer[4];
+
+    if ((raw_x == 0) || (raw_y == 0)) {
+        return;
+    }
+
+    icm20602_read_bytes(ICM20602_REG_ACCEL_XOUT_H, buffer, sizeof(buffer));
+
+    *raw_x = make_i16(buffer[0], buffer[1]);
+    *raw_y = make_i16(buffer[2], buffer[3]);
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: icm20602_map_install_direction
+*   功能说明: 根据ICM20602粗安装方向完成轴交换和符号修正
+*   形    参: sensor_x_g,sensor_y_g - 传感器坐标加速度；mapped_x_g,mapped_y_g - 粗映射结果
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+static void icm20602_map_install_direction(float sensor_x_g, float sensor_y_g,
+                                           float *mapped_x_g, float *mapped_y_g)
+{
+    if ((mapped_x_g == 0) || (mapped_y_g == 0)) {
+        return;
+    }
+
+#if (DVE_ICM20602_INSTALL_DIRECTION == DVE_ICM20602_INSTALL_X_FORWARD)
+    *mapped_x_g = sensor_x_g;
+    *mapped_y_g = sensor_y_g;
+#elif (DVE_ICM20602_INSTALL_DIRECTION == DVE_ICM20602_INSTALL_X_BACKWARD)
+    *mapped_x_g = -sensor_x_g;
+    *mapped_y_g = -sensor_y_g;
+#elif (DVE_ICM20602_INSTALL_DIRECTION == DVE_ICM20602_INSTALL_Y_FORWARD)
+    *mapped_x_g = sensor_y_g;
+    *mapped_y_g = -sensor_x_g;
+#elif (DVE_ICM20602_INSTALL_DIRECTION == DVE_ICM20602_INSTALL_Y_BACKWARD)
+    *mapped_x_g = -sensor_y_g;
+    *mapped_y_g = sensor_x_g;
+#else
+#error "Unsupported DVE_ICM20602_INSTALL_DIRECTION"
+#endif
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: icm20602_rotate_to_car_frame
+*   功能说明: 将粗映射后的加速度旋转到车体坐标系
+*   形    参: mapped_x_g,mapped_y_g - 粗映射结果；car_x_g,car_y_g - 车体坐标结果
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+static void icm20602_rotate_to_car_frame(float mapped_x_g, float mapped_y_g,
+                                         float *car_x_g, float *car_y_g)
+{
+    if ((car_x_g == 0) || (car_y_g == 0)) {
+        return;
+    }
+
+    *car_x_g = (mapped_x_g * s_mount_yaw_cos) - (mapped_y_g * s_mount_yaw_sin);
+    *car_y_g = (mapped_x_g * s_mount_yaw_sin) + (mapped_y_g * s_mount_yaw_cos);
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: calibrate_accel_xy
+*   功能说明: 标定传感器X/Y轴静态加速度零偏
+*   形    参: 无
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+static void calibrate_accel_xy(void)
+{
+    uint16_t i;
+    int16_t raw_x;
+    int16_t raw_y;
+    float sum_x = 0.0f;
+    float sum_y = 0.0f;
+
+    delay_ms(100U);
+
+    for (i = 0U; i < ICM20602_ACCEL_XY_CALIB_TIMES; i++) {
+        icm20602_read_accel_xy_raw(&raw_x, &raw_y);
+        sum_x += (float)raw_x / ICM20602_ACCEL_SENS_16G;
+        sum_y += (float)raw_y / ICM20602_ACCEL_SENS_16G;
+        delay_ms(ICM20602_ACCEL_XY_CALIB_PERIOD_MS);
+    }
+
+    s_accel_x_offset_g = sum_x / (float)ICM20602_ACCEL_XY_CALIB_TIMES;
+    s_accel_y_offset_g = sum_y / (float)ICM20602_ACCEL_XY_CALIB_TIMES;
+    s_accel_x_filter_g = 0.0f;
+    s_accel_y_filter_g = 0.0f;
+    s_icm_state.accel_x_g = 0.0f;
+    s_icm_state.accel_y_g = 0.0f;
+}
+
 static void calibrate_gyro(void)
 {
     uint16_t i;
@@ -414,6 +534,7 @@ static void calibrate_gyro(void)
 bool DVE_ICM20602_Init(void)
 {
     uint8_t who;
+    float mount_yaw_rad;
 
     BSP_GyroSPI_Init();
 
@@ -435,7 +556,20 @@ bool DVE_ICM20602_Init(void)
     who = read_who_am_i_retry();
     s_icm_state.is_ready = (who == DVE_ICM20602_WHO_AM_I_VALUE);
     if (s_icm_state.is_ready) {
+        mount_yaw_rad = DVE_ICM20602_MOUNT_YAW_DEG * ICM20602_DEG_TO_RAD;
+        s_mount_yaw_sin = sinf(mount_yaw_rad);
+        s_mount_yaw_cos = cosf(mount_yaw_rad);
         calibrate_gyro();
+#if (DVE_ICM20602_ENABLE_ACCEL_XY_CALIB != 0U)
+        calibrate_accel_xy();
+#else
+        s_accel_x_offset_g = 0.0f;
+        s_accel_y_offset_g = 0.0f;
+        s_accel_x_filter_g = 0.0f;
+        s_accel_y_filter_g = 0.0f;
+        s_icm_state.accel_x_g = 0.0f;
+        s_icm_state.accel_y_g = 0.0f;
+#endif
     }
 
     return s_icm_state.is_ready;
@@ -491,6 +625,7 @@ static ICM20602Data_t icm20602_axis_map(ICM20602Data_t data)
 */
 void DVE_ICM20602_Update(float dt_s)
 {
+#if (DVE_ICM20602_ENABLE_ATTITUDE_SOLVE != 0U)
     ICM20602Data_t data;
     float gyro_x;
     float gyro_y;
@@ -527,6 +662,9 @@ void DVE_ICM20602_Update(float dt_s)
     s_relative_yaw_deg = wrap_180(s_relative_yaw_deg);
     s_icm_state.yaw_deg = wrap_180((s_relative_yaw_deg * DVE_ICM20602_YAW_ANGLE_SIGN) +
                                    DVE_ICM20602_YAW_INSTALL_OFFSET_DEG);
+#else
+    (void)dt_s;
+#endif
 }
 
 /*
@@ -541,7 +679,9 @@ void DVE_ICM20602_SetZero(void)
 {
     s_relative_yaw_deg = 0.0f;
     s_icm_state.yaw_deg = 0.0f;
+#if (DVE_ICM20602_ENABLE_ATTITUDE_SOLVE != 0U)
     reset_attitude_quaternion();
+#endif
 }
 
 /*
@@ -559,6 +699,59 @@ void DVE_ICM20602_GetState(DVE_ICM20602State_t *state)
     }
 
     *state = s_icm_state;
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: DVE_ICM20602_ReadAccelXY
+*   功能说明: 仅读取并输出车体X/Y轴动态加速度
+*   形    参: accel_x_g - X轴加速度输出；accel_y_g - Y轴加速度输出
+*   返 回 值: true读取成功，false设备未就绪或参数无效
+*********************************************************************************************************
+*/
+bool DVE_ICM20602_ReadAccelXY(float *accel_x_g, float *accel_y_g)
+{
+    int16_t raw_x;
+    int16_t raw_y;
+    float sensor_x_g;
+    float sensor_y_g;
+    float mapped_x_g;
+    float mapped_y_g;
+    float car_x_g;
+    float car_y_g;
+
+    if ((!s_icm_state.is_ready) || (accel_x_g == 0) || (accel_y_g == 0)) {
+        return false;
+    }
+
+    icm20602_read_accel_xy_raw(&raw_x, &raw_y);
+
+    sensor_x_g = ((float)raw_x / ICM20602_ACCEL_SENS_16G) - s_accel_x_offset_g;
+    sensor_y_g = ((float)raw_y / ICM20602_ACCEL_SENS_16G) - s_accel_y_offset_g;
+
+#if (DVE_ICM20602_ENABLE_FRAME_TRANSFORM != 0U)
+    icm20602_map_install_direction(sensor_x_g, sensor_y_g, &mapped_x_g, &mapped_y_g);
+    icm20602_rotate_to_car_frame(mapped_x_g, mapped_y_g, &car_x_g, &car_y_g);
+#else
+    car_x_g = sensor_x_g;
+    car_y_g = sensor_y_g;
+#endif
+
+    car_x_g *= DVE_ICM20602_ACCEL_X_SIGN;
+    car_y_g *= DVE_ICM20602_ACCEL_Y_SIGN;
+
+    s_accel_x_filter_g += DVE_ICM20602_ACCEL_XY_LPF_ALPHA *
+                          (car_x_g - s_accel_x_filter_g);
+    s_accel_y_filter_g += DVE_ICM20602_ACCEL_XY_LPF_ALPHA *
+                          (car_y_g - s_accel_y_filter_g);
+
+    s_icm_state.accel_x_g = s_accel_x_filter_g;
+    s_icm_state.accel_y_g = s_accel_y_filter_g;
+
+    *accel_x_g = s_icm_state.accel_x_g;
+    *accel_y_g = s_icm_state.accel_y_g;
+
+    return true;
 }
 
 /*

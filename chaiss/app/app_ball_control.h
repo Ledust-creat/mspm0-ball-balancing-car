@@ -2,6 +2,8 @@
 #define APP_BALL_CONTROL_H_
 
 #include "PID.h"
+#include "app_k230_input.h"
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -13,18 +15,23 @@ extern "C" {
 *   宏定义
 *********************************************************************************************************
 */
-#define APP_BALL_CONTROL_PERIOD_MS          (33U)       /* 钢球闭环周期 */
-#define APP_BALL_VISION_TIMEOUT_MS          (500U)      /* 视觉数据超时时间 */
-#define APP_BALL_TARGET_LIMIT_CM            (10.0f)     /* 目标位置限幅 */
-#define APP_BALL_ANGLE_LIMIT_DEG            (6.0f)      /* 横梁角度限幅 */
-#define APP_BALL_SERVO_DIR                  (1.0f)      /* 舵机方向，反向时改为-1 */
-#define APP_BALL_SERVO_POS_PER_DEG          (12.0f)     /* 横梁每变化1度对应的舵机协议位置增量 */
-#define APP_BALL_MEASUREMENT_LIMIT_CM       (50.0f)     /* 外部位置输入合理范围 */
-#define APP_BALL_SPEED_LPF_ALPHA            (0.30f)     /* 速度低通新数据权重 */
-#define APP_BALL_DEFAULT_KP                 (0.80f)
-#define APP_BALL_DEFAULT_KI                 (0.00f)
-#define APP_BALL_DEFAULT_KD                 (0.15f)
-#define APP_BALL_INTEGRAL_LIMIT_DEG         (3.0f)      /* 积分输出限幅 */
+#define APP_BALL_VISION_TIMEOUT_MS          (500U)      /* K230无有效新帧故障超时，单位ms */
+#define APP_BALL_TARGET_LIMIT_CM            (10.0f)     /* 目标位置限幅，单位cm */
+#define APP_BALL_ANGLE_LIMIT_DEG            (6.0f)      /* 横梁角度输出总限幅，单位deg */
+#define APP_BALL_SERVO_DIR                  (1.0f)      /* 舵机方向修正，反向时改为-1 */
+#define APP_BALL_SERVO_POS_PER_DEG          (12.0f)     /* 横梁每变化1deg对应的舵机位置增量 */
+#define APP_BALL_MEASUREMENT_LIMIT_CM       (50.0f)     /* 外部位置输入合理范围，单位cm */
+#define APP_BALL_SPEED_LPF_ALPHA            (0.30f)     /* 球速一阶低通新数据权重，范围0~1 */
+#define APP_BALL_DEFAULT_KP                 (0.80f)     /* 钢球位置环默认Kp */
+#define APP_BALL_DEFAULT_KI                 (0.00f)     /* 钢球位置环默认Ki */
+#define APP_BALL_DEFAULT_KD                 (0.15f)     /* 钢球位置环默认Kd */
+#define APP_BALL_INTEGRAL_LIMIT_DEG         (3.0f)      /* 位置环积分输出限幅，单位deg */
+
+#define APP_BALL_ACCEL_FF_ENABLE            (0U)        /* 1启用IMU加速度前馈，0关闭；初期联调默认关闭 */
+#define APP_BALL_ACCEL_X_FF_DEG_PER_G       (0.0f)      /* 车体前向加速度前馈系数，单位deg/g */
+#define APP_BALL_ACCEL_Y_FF_DEG_PER_G       (20.0f)     /* 车体横向加速度前馈系数，单位deg/g */
+#define APP_BALL_ACCEL_FF_LIMIT_DEG         (3.0f)      /* 加速度前馈单独限幅，单位deg */
+#define APP_BALL_ACCEL_FF_SIGN              (1.0f)      /* 前馈方向修正，反向时改为-1 */
 
 /*
 *********************************************************************************************************
@@ -33,36 +40,57 @@ extern "C" {
 */
 typedef enum
 {
-    APP_BALL_STATE_STOP = 0,
-    APP_BALL_STATE_OPEN_LOOP_TEST,
-    APP_BALL_STATE_CENTER_HOLD,
-    APP_BALL_STATE_TARGET_HOLD,
-    APP_BALL_STATE_FAULT
+    APP_BALL_STATE_STOP = 0,                /* 控球停止，舵机回水平位置 */
+    APP_BALL_STATE_OPEN_LOOP_TEST,          /* 舵机开环位置测试 */
+    APP_BALL_STATE_CENTER_HOLD,             /* 钢球保持在管中心 */
+    APP_BALL_STATE_TARGET_HOLD,             /* 钢球保持在指定目标位置 */
+    APP_BALL_STATE_FAULT                    /* 视觉或设备故障，进入安全状态 */
 } APP_BallControlState_t;
+
+typedef enum
+{
+    APP_BALL_FAULT_NONE = 0,                /* 无故障 */
+    APP_BALL_FAULT_VISION_TIMEOUT           /* K230视觉数据超时 */
+} APP_BallControlFault_t;
 
 typedef struct
 {
-    float center_x_px;                    /* 图像中心X坐标 */
-    float cm_per_px;                      /* 像素到厘米比例 */
-    float valid_y_min_px;                 /* 有效Y范围下限 */
-    float valid_y_max_px;                 /* 有效Y范围上限 */
-    uint8_t is_calibrated;                /* 1表示投影参数有效 */
+    float center_x_px;                      /* 图像中心X坐标，单位px */
+    float cm_per_px;                        /* 像素到厘米比例，单位cm/px */
+    float valid_y_min_px;                   /* 有效Y范围下限，单位px */
+    float valid_y_max_px;                   /* 有效Y范围上限，单位px */
+    uint8_t is_calibrated;                  /* 1表示投影参数有效 */
 } APP_BallVisionCalibration_t;
 
 typedef struct
 {
-    PID_t ball_pid;                       /* 钢球位置PID参数及输出 */
-    APP_BallControlState_t state;         /* 当前控制状态 */
-    float target_cm;                      /* 目标位置 */
-    float measured_cm;                    /* 实测位置 */
-    float error_cm;                       /* 位置误差 */
-    float ball_speed_cm_s;                /* 低通后的钢球速度 */
-    float angle_cmd_deg;                  /* 横梁角度命令 */
-    uint16_t servo_position;              /* 舵机位置命令 */
-    uint8_t enabled;                      /* 闭环使能状态 */
-    uint8_t measurement_valid;            /* 位置数据有效状态 */
-    uint8_t saturated;                    /* 输出限幅标志 */
-} APP_BallControl_t;
+    float position_kp;                      /* 球位置比例增益 */
+    float position_ki;                      /* 球位置积分增益 */
+    float position_kd;                      /* 球位置速度反馈增益 */
+    float target_position_cm;               /* 默认目标位置，单位cm */
+    float accel_forward_ff_gain;            /* 预留车体前向加速度前馈系数，单位deg/g */
+    uint16_t servo_level_position;          /* 横梁水平时舵机位置命令，范围0~1000 */
+    uint16_t servo_position_min;            /* 舵机软件最小允许位置，范围0~1000 */
+    uint16_t servo_position_max;            /* 舵机软件最大允许位置，范围0~1000 */
+} APP_BallControlConfig_t;
+
+typedef struct
+{
+    APP_BallControlState_t state;           /* 当前控球状态 */
+    APP_BallControlFault_t fault;           /* 当前控球故障 */
+    float target_position_cm;               /* 当前目标位置，单位cm */
+    float measured_position_cm;             /* 当前视觉位置，单位cm */
+    float error_cm;                         /* 位置误差，单位cm */
+    float estimated_velocity_cm_s;          /* 估算球速，单位cm/s */
+    float angle_cmd_deg;                    /* 横梁角度命令，单位deg */
+    float accel_feedforward_deg;            /* IMU加速度前馈角度，单位deg */
+    uint16_t servo_command;                 /* 当前舵机位置命令，范围0~1000 */
+    uint32_t last_vision_tick_ms;           /* 最近有效视觉帧收帧时刻，单位ms */
+    bool vision_valid;                      /* true表示当前视觉数据有效 */
+    bool enabled;                           /* true表示闭环使能 */
+    bool imu_accel_valid;                   /* true表示本次使用的IMU加速度缓存有效 */
+    bool saturated;                         /* true表示角度或舵机输出发生限幅 */
+} APP_BallControlStatus_t;
 
 /*
 *********************************************************************************************************
@@ -71,14 +99,19 @@ typedef struct
 */
 void APP_BallControl_Init(void);
 void APP_BallControl_Task(void);
+void APP_BallControl_UpdateFromVision(const APP_K230BallFrame_t *frame);
+void APP_BallControl_SafetyTask(void);
 void APP_BallControl_SetEnable(uint8_t enable);
 void APP_BallControl_SetTargetCm(float target_cm);
 void APP_BallControl_SetMeasuredPositionCm(float x_cm, uint32_t tick_ms);
 void APP_BallControl_SetVisionPoint(float x_px, float y_px, uint32_t tick_ms);
 void APP_BallControl_SetVisionCalibration(const APP_BallVisionCalibration_t *calibration);
 void APP_BallControl_SetPid(float kp, float ki, float kd);
+void APP_BallControl_GetPid(PID_t *pid);
 void APP_BallControl_SetServoTestPosition(uint16_t pos);
-const APP_BallControl_t *APP_BallControl_GetStatus(void);
+bool APP_BallControl_IsFault(void);
+APP_BallControlFault_t APP_BallControl_GetFault(void);
+void APP_BallControl_GetStatus(APP_BallControlStatus_t *status);
 
 #ifdef __cplusplus
 }

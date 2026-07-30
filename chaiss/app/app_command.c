@@ -134,7 +134,7 @@ static void get_tune_pid(PID_t *pid)
 #elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_RIGHT_SPEED)
     DVE_Chassis_GetSpeedPid(0, pid);
 #elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_BALL)
-    *pid = APP_BallControl_GetStatus()->ball_pid;
+    APP_BallControl_GetPid(pid);
 #else
 #error "Unsupported APP_CMD_TUNE_TARGET"
 #endif
@@ -176,7 +176,9 @@ static float get_tune_error(void)
     DVE_Chassis_GetState(&state);
     return state.right_actual_cm_s;
 #elif (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_BALL)
-    return APP_BallControl_GetStatus()->error_cm;
+    APP_BallControlStatus_t status;
+    APP_BallControl_GetStatus(&status);
+    return status.error_cm;
 #else
 #error "Unsupported APP_CMD_TUNE_TARGET"
 #endif
@@ -185,7 +187,9 @@ static float get_tune_error(void)
 static float get_tune_output(void)
 {
 #if (APP_CMD_TUNE_TARGET == APP_CMD_TUNE_TARGET_BALL)
-    return APP_BallControl_GetStatus()->angle_cmd_deg;
+    APP_BallControlStatus_t status;
+    APP_BallControl_GetStatus(&status);
+    return status.angle_cmd_deg;
 #else
     APP_ChassisControlState_t state;
     APP_ChassisControl_GetState(&state);
@@ -449,7 +453,7 @@ static void send_wave_status(void)
 
 static void send_text_status(void)
 {
-    const APP_BallControl_t *ball = APP_BallControl_GetStatus();
+    APP_BallControlStatus_t ball;
     DVE_ChassisState_t chassis;
     APP_ChassisControlState_t control;
     PID_t pid;
@@ -457,6 +461,7 @@ static void send_text_status(void)
 
     DVE_Chassis_GetState(&chassis);
     APP_ChassisControl_GetState(&control);
+    APP_BallControl_GetStatus(&ball);
     get_tune_pid(&pid);
 
     p = append_str(p, "STAT,mode=");
@@ -520,31 +525,31 @@ static void send_text_status(void)
 #endif
 
     p = append_str(p, "\r\nBALL st=");
-    p = append_i32(p, (int32_t)ball->state);
+    p = append_i32(p, (int32_t)ball.state);
     p = append_str(p, ",en=");
-    p = append_i32(p, ball->enabled);
+    p = append_i32(p, ball.enabled ? 1 : 0);
     p = append_str(p, ",valid=");
-    p = append_i32(p, ball->measurement_valid);
+    p = append_i32(p, ball.vision_valid ? 1 : 0);
     p = append_str(p, ",x=");
-    p = append_f2(p, ball->measured_cm);
+    p = append_f2(p, ball.measured_position_cm);
     p = append_str(p, ",tgt=");
-    p = append_f2(p, ball->target_cm);
+    p = append_f2(p, ball.target_position_cm);
     p = append_str(p, ",err=");
-    p = append_f2(p, ball->error_cm);
+    p = append_f2(p, ball.error_cm);
     p = append_str(p, ",v=");
-    p = append_f2(p, ball->ball_speed_cm_s);
+    p = append_f2(p, ball.estimated_velocity_cm_s);
     p = append_str(p, ",pid=");
-    p = append_f2(p, ball->ball_pid.Kp);
+    p = append_f2(p, pid.Kp);
     p = append_str(p, "/");
-    p = append_f2(p, ball->ball_pid.Ki);
+    p = append_f2(p, pid.Ki);
     p = append_str(p, "/");
-    p = append_f2(p, ball->ball_pid.Kd);
+    p = append_f2(p, pid.Kd);
     p = append_str(p, ",ang=");
-    p = append_f2(p, ball->angle_cmd_deg);
+    p = append_f2(p, ball.angle_cmd_deg);
     p = append_str(p, ",pos=");
-    p = append_i32(p, ball->servo_position);
+    p = append_i32(p, ball.servo_command);
     p = append_str(p, ",sat=");
-    p = append_i32(p, ball->saturated);
+    p = append_i32(p, ball.saturated ? 1 : 0);
 
     p = append_str(p, "\r\nlt=");
     p = append_f2(p, chassis.left_target_cm_s);

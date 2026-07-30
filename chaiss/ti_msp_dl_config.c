@@ -55,7 +55,9 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     SYSCFG_DL_SYSCTL_init();
     SYSCFG_DL_Chassis_Motor_PWM_init();
     SYSCFG_DL_TIMER_Chassis_Motor_Encoder_Read_init();
+    SYSCFG_DL_I2C_0_init();
     SYSCFG_DL_UART_BLUETOOTH_init();
+    SYSCFG_DL_UART_HTS25L_init();
     SYSCFG_DL_SPI_ICM20602_init();
     /* Ensure backup structures have no valid state */
 	gChassis_Motor_PWMBackup.backupRdy 	= false;
@@ -95,14 +97,18 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_GPIO_reset(GPIOB);
     DL_TimerA_reset(Chassis_Motor_PWM_INST);
     DL_TimerG_reset(TIMER_Chassis_Motor_Encoder_Read_INST);
+    DL_I2C_reset(I2C_0_INST);
     DL_UART_Main_reset(UART_BLUETOOTH_INST);
+    DL_UART_Main_reset(UART_HTS25L_INST);
     DL_SPI_reset(SPI_ICM20602_INST);
 
     DL_GPIO_enablePower(GPIOA);
     DL_GPIO_enablePower(GPIOB);
     DL_TimerA_enablePower(Chassis_Motor_PWM_INST);
     DL_TimerG_enablePower(TIMER_Chassis_Motor_Encoder_Read_INST);
+    DL_I2C_enablePower(I2C_0_INST);
     DL_UART_Main_enablePower(UART_BLUETOOTH_INST);
+    DL_UART_Main_enablePower(UART_HTS25L_INST);
     DL_SPI_enablePower(SPI_ICM20602_INST);
     delay_cycles(POWER_STARTUP_DELAY);
 }
@@ -118,10 +124,25 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_initPeripheralOutputFunction(GPIO_Chassis_Motor_PWM_C1_IOMUX,GPIO_Chassis_Motor_PWM_C1_IOMUX_FUNC);
     DL_GPIO_enableOutput(GPIO_Chassis_Motor_PWM_C1_PORT, GPIO_Chassis_Motor_PWM_C1_PIN);
 
+    DL_GPIO_initPeripheralInputFunctionFeatures(GPIO_I2C_0_IOMUX_SDA,
+        GPIO_I2C_0_IOMUX_SDA_FUNC, DL_GPIO_INVERSION_DISABLE,
+        DL_GPIO_RESISTOR_NONE, DL_GPIO_HYSTERESIS_DISABLE,
+        DL_GPIO_WAKEUP_DISABLE);
+    DL_GPIO_initPeripheralInputFunctionFeatures(GPIO_I2C_0_IOMUX_SCL,
+        GPIO_I2C_0_IOMUX_SCL_FUNC, DL_GPIO_INVERSION_DISABLE,
+        DL_GPIO_RESISTOR_NONE, DL_GPIO_HYSTERESIS_DISABLE,
+        DL_GPIO_WAKEUP_DISABLE);
+    DL_GPIO_enableHiZ(GPIO_I2C_0_IOMUX_SDA);
+    DL_GPIO_enableHiZ(GPIO_I2C_0_IOMUX_SCL);
+
     DL_GPIO_initPeripheralOutputFunction(
         GPIO_UART_BLUETOOTH_IOMUX_TX, GPIO_UART_BLUETOOTH_IOMUX_TX_FUNC);
     DL_GPIO_initPeripheralInputFunction(
         GPIO_UART_BLUETOOTH_IOMUX_RX, GPIO_UART_BLUETOOTH_IOMUX_RX_FUNC);
+    DL_GPIO_initPeripheralOutputFunction(
+        GPIO_UART_HTS25L_IOMUX_TX, GPIO_UART_HTS25L_IOMUX_TX_FUNC);
+    DL_GPIO_initPeripheralInputFunction(
+        GPIO_UART_HTS25L_IOMUX_RX, GPIO_UART_HTS25L_IOMUX_RX_FUNC);
 
     DL_GPIO_initPeripheralOutputFunction(
         GPIO_SPI_ICM20602_IOMUX_SCLK, GPIO_SPI_ICM20602_IOMUX_SCLK_FUNC);
@@ -187,6 +208,14 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
     DL_GPIO_initDigitalInputFeatures(EncoderB_E2B_IOMUX,
+		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP,
+		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
+
+    DL_GPIO_initDigitalInputFeatures(KEY_SELECT_IOMUX,
+		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP,
+		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
+
+    DL_GPIO_initDigitalInputFeatures(KEY_CONFIRM_IOMUX,
 		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP,
 		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
@@ -415,6 +444,34 @@ SYSCONFIG_WEAK void SYSCFG_DL_TIMER_Chassis_Motor_Encoder_Read_init(void) {
 }
 
 
+static const DL_I2C_ClockConfig gI2C_0ClockConfig = {
+    .clockSel = DL_I2C_CLOCK_BUSCLK,
+    .divideRatio = DL_I2C_CLOCK_DIVIDE_1,
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_I2C_0_init(void) {
+
+    DL_I2C_setClockConfig(I2C_0_INST,
+        (DL_I2C_ClockConfig *) &gI2C_0ClockConfig);
+    DL_I2C_setAnalogGlitchFilterPulseWidth(I2C_0_INST,
+        DL_I2C_ANALOG_GLITCH_FILTER_WIDTH_50NS);
+    DL_I2C_enableAnalogGlitchFilter(I2C_0_INST);
+
+    /* Configure Controller Mode */
+    DL_I2C_resetControllerTransfer(I2C_0_INST);
+    /* Set frequency to 400000 Hz*/
+    DL_I2C_setTimerPeriod(I2C_0_INST, 9);
+    DL_I2C_setControllerTXFIFOThreshold(I2C_0_INST, DL_I2C_TX_FIFO_LEVEL_EMPTY);
+    DL_I2C_setControllerRXFIFOThreshold(I2C_0_INST, DL_I2C_RX_FIFO_LEVEL_BYTES_1);
+    DL_I2C_enableControllerClockStretching(I2C_0_INST);
+
+
+    /* Enable module */
+    DL_I2C_enableController(I2C_0_INST);
+
+
+}
+
 static const DL_UART_Main_ClockConfig gUART_BLUETOOTHClockConfig = {
     .clockSel    = DL_UART_MAIN_CLOCK_BUSCLK,
     .divideRatio = DL_UART_MAIN_CLOCK_DIVIDE_RATIO_1
@@ -449,6 +506,41 @@ SYSCONFIG_WEAK void SYSCFG_DL_UART_BLUETOOTH_init(void)
 
 
     DL_UART_Main_enable(UART_BLUETOOTH_INST);
+}
+static const DL_UART_Main_ClockConfig gUART_HTS25LClockConfig = {
+    .clockSel    = DL_UART_MAIN_CLOCK_BUSCLK,
+    .divideRatio = DL_UART_MAIN_CLOCK_DIVIDE_RATIO_1
+};
+
+static const DL_UART_Main_Config gUART_HTS25LConfig = {
+    .mode        = DL_UART_MAIN_MODE_NORMAL,
+    .direction   = DL_UART_MAIN_DIRECTION_TX_RX,
+    .flowControl = DL_UART_MAIN_FLOW_CONTROL_NONE,
+    .parity      = DL_UART_MAIN_PARITY_NONE,
+    .wordLength  = DL_UART_MAIN_WORD_LENGTH_8_BITS,
+    .stopBits    = DL_UART_MAIN_STOP_BITS_ONE
+};
+
+SYSCONFIG_WEAK void SYSCFG_DL_UART_HTS25L_init(void)
+{
+    DL_UART_Main_setClockConfig(UART_HTS25L_INST, (DL_UART_Main_ClockConfig *) &gUART_HTS25LClockConfig);
+
+    DL_UART_Main_init(UART_HTS25L_INST, (DL_UART_Main_Config *) &gUART_HTS25LConfig);
+    /*
+     * Configure baud rate by setting oversampling and baud rate divisors.
+     *  Target baud rate: 115200
+     *  Actual baud rate: 115190.78
+     */
+    DL_UART_Main_setOversampling(UART_HTS25L_INST, DL_UART_OVERSAMPLING_RATE_16X);
+    DL_UART_Main_setBaudRateDivisor(UART_HTS25L_INST, UART_HTS25L_IBRD_40_MHZ_115200_BAUD, UART_HTS25L_FBRD_40_MHZ_115200_BAUD);
+
+
+    /* Configure Interrupts */
+    DL_UART_Main_enableInterrupt(UART_HTS25L_INST,
+                                 DL_UART_MAIN_INTERRUPT_RX);
+
+
+    DL_UART_Main_enable(UART_HTS25L_INST);
 }
 
 static const DL_SPI_Config gSPI_ICM20602_config = {

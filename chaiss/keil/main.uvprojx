@@ -482,6 +482,21 @@
               <FileType>5</FileType>
               <FilePath>..\total.h</FilePath>
             </File>
+            <File>
+              <FileName>OLED.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\OLED.c</FilePath>
+            </File>
+            <File>
+              <FileName>OLED.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\OLED.h</FilePath>
+            </File>
+            <File>
+              <FileName>OLED_Font.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\OLED_Font.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -526,6 +541,26 @@
               <FileName>app_gyro_control.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\app\app_gyro_control.h</FilePath>
+            </File>
+            <File>
+              <FileName>app_ball_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\app_ball_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_ball_control.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\app_ball_control.h</FilePath>
+            </File>
+            <File>
+              <FileName>app_competition_menu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\app_competition_menu.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_competition_menu.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\app_competition_menu.h</FilePath>
             </File>
           </Files>
         </Group>
@@ -577,6 +612,26 @@
               <FileType>5</FileType>
               <FilePath>..\BSP\bsp_chassis_motor.h</FilePath>
             </File>
+            <File>
+              <FileName>bsp_servo_bus.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\bsp_servo_bus.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_servo_bus.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\BSP\bsp_servo_bus.h</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_key.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\bsp_key.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_key.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\BSP\bsp_key.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -606,6 +661,16 @@
               <FileName>dve_ir_sensor.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\DVE\dve_ir_sensor.h</FilePath>
+            </File>
+            <File>
+              <FileName>dve_hts25l.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\DVE\dve_hts25l.c</FilePath>
+            </File>
+            <File>
+              <FileName>dve_hts25l.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\DVE\dve_hts25l.h</FilePath>
             </File>
           </Files>
         </Group>

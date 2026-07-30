@@ -60,8 +60,8 @@ static int16_t abs_i16(int16_t value)
 */
 static void left_motor_forward(void)
 {
-    DL_GPIO_clearPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN1_PIN);
-    DL_GPIO_setPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN2_PIN);
+    DL_GPIO_clearPins(Chassis_MotorB_BIN1_PORT, Chassis_MotorB_BIN1_PIN);
+    DL_GPIO_setPins(Chassis_MotorB_BIN2_PORT, Chassis_MotorB_BIN2_PIN);
 }
 
 /*
@@ -74,8 +74,8 @@ static void left_motor_forward(void)
 */
 static void left_motor_backward(void)
 {
-    DL_GPIO_setPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN1_PIN);
-    DL_GPIO_clearPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN2_PIN);
+    DL_GPIO_setPins(Chassis_MotorB_BIN1_PORT, Chassis_MotorB_BIN1_PIN);
+    DL_GPIO_clearPins(Chassis_MotorB_BIN2_PORT, Chassis_MotorB_BIN2_PIN);
 }
 
 /*
@@ -88,8 +88,8 @@ static void left_motor_backward(void)
 */
 static void left_motor_coast(void)
 {
-    DL_GPIO_clearPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN1_PIN);
-    DL_GPIO_clearPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN2_PIN);
+    DL_GPIO_clearPins(Chassis_MotorB_BIN1_PORT, Chassis_MotorB_BIN1_PIN);
+    DL_GPIO_clearPins(Chassis_MotorB_BIN2_PORT, Chassis_MotorB_BIN2_PIN);
 }
 
 /*
@@ -102,8 +102,8 @@ static void left_motor_coast(void)
 */
 static void right_motor_forward(void)
 {
-    DL_GPIO_clearPins(Chassis_MotorB_BIN1_PORT, Chassis_MotorB_BIN1_PIN);
-    DL_GPIO_setPins(Chassis_MotorB_BIN2_PORT, Chassis_MotorB_BIN2_PIN);
+    DL_GPIO_clearPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN1_PIN);
+    DL_GPIO_setPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN2_PIN);
 }
 
 /*
@@ -116,8 +116,8 @@ static void right_motor_forward(void)
 */
 static void right_motor_backward(void)
 {
-    DL_GPIO_setPins(Chassis_MotorB_BIN1_PORT, Chassis_MotorB_BIN1_PIN);
-    DL_GPIO_clearPins(Chassis_MotorB_BIN2_PORT, Chassis_MotorB_BIN2_PIN);
+    DL_GPIO_setPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN1_PIN);
+    DL_GPIO_clearPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN2_PIN);
 }
 
 /*
@@ -130,8 +130,8 @@ static void right_motor_backward(void)
 */
 static void right_motor_coast(void)
 {
-    DL_GPIO_clearPins(Chassis_MotorB_BIN1_PORT, Chassis_MotorB_BIN1_PIN);
-    DL_GPIO_clearPins(Chassis_MotorB_BIN2_PORT, Chassis_MotorB_BIN2_PIN);
+    DL_GPIO_clearPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN1_PIN);
+    DL_GPIO_clearPins(Chassis_MotorA_PORT, Chassis_MotorA_AIN2_PIN);
 }
 
 /*
@@ -146,7 +146,6 @@ void BSP_ChassisMotor_Init(void)
 {
     BSP_ChassisMotor_SetLeftPwm(0);
     BSP_ChassisMotor_SetRightPwm(0);
-
 }
 
 /*
@@ -162,17 +161,17 @@ void BSP_ChassisMotor_SetLeftPwm(int16_t pwm)
     int16_t pwm_abs;
 
     pwm = pwm_limit(pwm);
-    
+
     if (pwm == 0) {
         DL_TimerG_setCaptureCompareValue(Chassis_Motor_PWM_INST, 0, GPIO_Chassis_Motor_PWM_C1_IDX);
-        right_motor_coast();
+        left_motor_coast();
         return;
     }
 
     if (pwm > 0) {
-        right_motor_forward();
+        left_motor_forward();
     } else {
-        right_motor_backward();
+        left_motor_backward();
     }
 
     pwm_abs = abs_i16(pwm);
@@ -195,14 +194,14 @@ void BSP_ChassisMotor_SetRightPwm(int16_t pwm)
 
     if (pwm == 0) {
         DL_TimerG_setCaptureCompareValue(Chassis_Motor_PWM_INST, 0, GPIO_Chassis_Motor_PWM_C0_IDX);
-        left_motor_coast();
+        right_motor_coast();
         return;
     }
 
     if (pwm > 0) {
-        left_motor_forward();
+        right_motor_forward();
     } else {
-        left_motor_backward();
+        right_motor_backward();
     }
 
     pwm_abs = abs_i16(pwm);

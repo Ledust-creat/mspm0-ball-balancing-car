@@ -117,22 +117,54 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 
 
 
+
+/* Defines for I2C_0 */
+#define I2C_0_INST                                                          I2C0
+#define I2C_0_INST_IRQHandler                                    I2C0_IRQHandler
+#define I2C_0_INST_INT_IRQN                                        I2C0_INT_IRQn
+#define I2C_0_BUS_SPEED_HZ                                                400000
+#define GPIO_I2C_0_SDA_PORT                                                GPIOA
+#define GPIO_I2C_0_SDA_PIN                                        DL_GPIO_PIN_28
+#define GPIO_I2C_0_IOMUX_SDA                                      (IOMUX_PINCM3)
+#define GPIO_I2C_0_IOMUX_SDA_FUNC                       IOMUX_PINCM3_PF_I2C0_SDA
+#define GPIO_I2C_0_SCL_PORT                                                GPIOA
+#define GPIO_I2C_0_SCL_PIN                                        DL_GPIO_PIN_31
+#define GPIO_I2C_0_IOMUX_SCL                                      (IOMUX_PINCM6)
+#define GPIO_I2C_0_IOMUX_SCL_FUNC                       IOMUX_PINCM6_PF_I2C0_SCL
+
+
 /* Defines for UART_BLUETOOTH */
 #define UART_BLUETOOTH_INST                                                UART2
 #define UART_BLUETOOTH_INST_FREQUENCY                                   40000000
 #define UART_BLUETOOTH_INST_IRQHandler                          UART2_IRQHandler
 #define UART_BLUETOOTH_INST_INT_IRQN                              UART2_INT_IRQn
-#define GPIO_UART_BLUETOOTH_RX_PORT                                        GPIOB
-#define GPIO_UART_BLUETOOTH_TX_PORT                                        GPIOB
-#define GPIO_UART_BLUETOOTH_RX_PIN                                DL_GPIO_PIN_16
-#define GPIO_UART_BLUETOOTH_TX_PIN                                DL_GPIO_PIN_15
-#define GPIO_UART_BLUETOOTH_IOMUX_RX                             (IOMUX_PINCM33)
-#define GPIO_UART_BLUETOOTH_IOMUX_TX                             (IOMUX_PINCM32)
-#define GPIO_UART_BLUETOOTH_IOMUX_RX_FUNC               IOMUX_PINCM33_PF_UART2_RX
-#define GPIO_UART_BLUETOOTH_IOMUX_TX_FUNC               IOMUX_PINCM32_PF_UART2_TX
+#define GPIO_UART_BLUETOOTH_RX_PORT                                        GPIOA
+#define GPIO_UART_BLUETOOTH_TX_PORT                                        GPIOA
+#define GPIO_UART_BLUETOOTH_RX_PIN                                DL_GPIO_PIN_24
+#define GPIO_UART_BLUETOOTH_TX_PIN                                DL_GPIO_PIN_23
+#define GPIO_UART_BLUETOOTH_IOMUX_RX                             (IOMUX_PINCM54)
+#define GPIO_UART_BLUETOOTH_IOMUX_TX                             (IOMUX_PINCM53)
+#define GPIO_UART_BLUETOOTH_IOMUX_RX_FUNC               IOMUX_PINCM54_PF_UART2_RX
+#define GPIO_UART_BLUETOOTH_IOMUX_TX_FUNC               IOMUX_PINCM53_PF_UART2_TX
 #define UART_BLUETOOTH_BAUD_RATE                                        (115200)
 #define UART_BLUETOOTH_IBRD_40_MHZ_115200_BAUD                              (21)
 #define UART_BLUETOOTH_FBRD_40_MHZ_115200_BAUD                              (45)
+/* Defines for UART_HTS25L */
+#define UART_HTS25L_INST                                                   UART0
+#define UART_HTS25L_INST_FREQUENCY                                      40000000
+#define UART_HTS25L_INST_IRQHandler                             UART0_IRQHandler
+#define UART_HTS25L_INST_INT_IRQN                                 UART0_INT_IRQn
+#define GPIO_UART_HTS25L_RX_PORT                                           GPIOA
+#define GPIO_UART_HTS25L_TX_PORT                                           GPIOA
+#define GPIO_UART_HTS25L_RX_PIN                                   DL_GPIO_PIN_11
+#define GPIO_UART_HTS25L_TX_PIN                                   DL_GPIO_PIN_10
+#define GPIO_UART_HTS25L_IOMUX_RX                                (IOMUX_PINCM22)
+#define GPIO_UART_HTS25L_IOMUX_TX                                (IOMUX_PINCM21)
+#define GPIO_UART_HTS25L_IOMUX_RX_FUNC                 IOMUX_PINCM22_PF_UART0_RX
+#define GPIO_UART_HTS25L_IOMUX_TX_FUNC                 IOMUX_PINCM21_PF_UART0_TX
+#define UART_HTS25L_BAUD_RATE                                           (115200)
+#define UART_HTS25L_IBRD_40_MHZ_115200_BAUD                                 (21)
+#define UART_HTS25L_FBRD_40_MHZ_115200_BAUD                                 (45)
 
 
 
@@ -242,6 +274,15 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 #define EncoderB_E2B_PORT                                                (GPIOB)
 #define EncoderB_E2B_PIN                                        (DL_GPIO_PIN_23)
 #define EncoderB_E2B_IOMUX                                       (IOMUX_PINCM51)
+/* Port definition for Pin Group KEY */
+#define KEY_PORT                                                         (GPIOA)
+
+/* Defines for SELECT: GPIOA.9 with pinCMx 20 on package pin 55 */
+#define KEY_SELECT_PIN                                           (DL_GPIO_PIN_9)
+#define KEY_SELECT_IOMUX                                         (IOMUX_PINCM20)
+/* Defines for CONFIRM: GPIOA.8 with pinCMx 19 on package pin 54 */
+#define KEY_CONFIRM_PIN                                          (DL_GPIO_PIN_8)
+#define KEY_CONFIRM_IOMUX                                        (IOMUX_PINCM19)
 
 
 /* clang-format on */
@@ -254,7 +295,9 @@ void SYSCFG_DL_SYSCTL_init(void);
 bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 void SYSCFG_DL_Chassis_Motor_PWM_init(void);
 void SYSCFG_DL_TIMER_Chassis_Motor_Encoder_Read_init(void);
+void SYSCFG_DL_I2C_0_init(void);
 void SYSCFG_DL_UART_BLUETOOTH_init(void);
+void SYSCFG_DL_UART_HTS25L_init(void);
 void SYSCFG_DL_SPI_ICM20602_init(void);
 
 

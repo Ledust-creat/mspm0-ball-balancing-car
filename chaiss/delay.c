@@ -10,10 +10,7 @@
 */
 void delay_us(uint16_t us)
 {
-    for (int i = 0; i < 100; i++) {
-         delay_cycles(800000*us);
-    }
-   
+    delay_cycles((CPUCLK_FREQ / 1000000U) * (uint32_t)us);
 }
 /*
 *********************************************************************************************************
@@ -25,9 +22,8 @@ void delay_us(uint16_t us)
 */
 void delay_ms(uint16_t ms)
 {
-    for (int i = 0; i < 100; i++) {
-         delay_cycles(800000/1000*ms);
+    while (ms--) {
+        delay_us(1000U);
     }
-   
 }
 

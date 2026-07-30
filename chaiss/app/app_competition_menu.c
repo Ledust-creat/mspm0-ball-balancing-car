@@ -10,7 +10,6 @@
 */
 #define APP_MENU_FRAME_MS               (20U)       /* UI低优先级框架周期 */
 #define APP_MENU_KEY_SCAN_MS            (10U)       /* 按键扫描周期 */
-#define APP_MENU_KEY_PHASE_MS           (5U)        /* 按键扫描相位 */
 #define APP_MENU_OLED_PHASE_MS          (13U)       /* OLED刷新相位 */
 #define APP_MENU_RUN_REFRESH_MS         (200U)      /* 运行页面刷新周期 */
 #define APP_MENU_COUNTDOWN_MS           (3000U)     /* 倒计时时长 */
@@ -53,11 +52,13 @@ static bool s_start_request;
 static bool s_stop_request;
 static bool s_oled_dirty;
 static bool s_oled_full_redraw;
+static bool s_countdown_cancel_armed;
 
 static uint8_t s_fault_code;
+static uint8_t s_last_countdown_number;
 static uint64_t s_countdown_start_ms;
 static uint64_t s_running_start_ms;
-static uint64_t s_last_key_epoch;
+static uint64_t s_last_key_scan_ms;
 static uint64_t s_last_oled_frame;
 static uint64_t s_last_run_refresh_ms;
 
@@ -150,6 +151,8 @@ static void menu_enter_countdown(uint64_t now_ms)
 {
     s_ui_state = APP_COMP_UI_COUNTDOWN;
     s_countdown_start_ms = now_ms;
+    s_last_countdown_number = 0U;
+    s_countdown_cancel_armed = false;
     menu_mark_full_redraw();
 }
 
@@ -194,6 +197,8 @@ static void menu_mark_full_redraw(void)
 */
 static void menu_update_state(uint64_t now_ms)
 {
+    uint8_t countdown_number;
+
     switch (s_ui_state) {
         case APP_COMP_UI_SELECT:
             if (s_select_key.pressed_event) {
@@ -206,16 +211,24 @@ static void menu_update_state(uint64_t now_ms)
             break;
 
         case APP_COMP_UI_COUNTDOWN:
-            if (s_select_key.pressed_event) {
+            countdown_number = menu_get_countdown_number(now_ms);
+            if (countdown_number != s_last_countdown_number) {
+                s_last_countdown_number = countdown_number;
+                s_oled_dirty = true;
+            }
+
+            if (!s_countdown_cancel_armed) {
+                if (!s_select_key.stable_state && !s_confirm_key.stable_state) {
+                    s_countdown_cancel_armed = true; // 进入倒计时后需先松开按键，再允许取消
+                }
+            } else if (s_select_key.stable_state) {
                 menu_enter_select();
-            } else if (s_confirm_key.pressed_event) {
+            } else if (s_confirm_key.stable_state) {
                 s_start_request = false;
                 s_stop_request = true;
                 menu_enter_select();
             } else if ((now_ms - s_countdown_start_ms) >= APP_MENU_COUNTDOWN_MS) {
                 menu_enter_running(now_ms);
-            } else {
-                s_oled_dirty = true; // 倒计时数字可能跨秒变化，只覆盖固定行
             }
             break;
 
@@ -464,10 +477,12 @@ void APP_CompetitionMenu_Init(void)
     s_ui_state = APP_COMP_UI_SELECT;
     s_start_request = false;
     s_stop_request = false;
+    s_countdown_cancel_armed = false;
     s_fault_code = 0U;
+    s_last_countdown_number = 0U;
     s_countdown_start_ms = 0U;
     s_running_start_ms = 0U;
-    s_last_key_epoch = 0U;
+    s_last_key_scan_ms = 0U;
     s_last_oled_frame = 0U;
     s_last_run_refresh_ms = 0U;
     menu_mark_full_redraw();
@@ -484,13 +499,11 @@ void APP_CompetitionMenu_Init(void)
 void APP_CompetitionMenu_Task(void)
 {
     uint64_t now_ms = Get_Tick();
-    uint64_t key_epoch = now_ms / APP_MENU_KEY_SCAN_MS;
     uint64_t oled_frame = now_ms / APP_MENU_FRAME_MS;
     uint8_t phase_ms = (uint8_t)(now_ms % APP_MENU_FRAME_MS);
 
-    if (((now_ms % APP_MENU_KEY_SCAN_MS) >= APP_MENU_KEY_PHASE_MS) &&
-        (key_epoch != s_last_key_epoch)) {
-        s_last_key_epoch = key_epoch;
+    if ((now_ms - s_last_key_scan_ms) >= APP_MENU_KEY_SCAN_MS) {
+        s_last_key_scan_ms = now_ms;
         menu_scan_keys();
     }
 

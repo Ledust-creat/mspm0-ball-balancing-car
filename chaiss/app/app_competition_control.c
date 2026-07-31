@@ -80,7 +80,7 @@ void APP_CompetitionControl_Task(uint32_t now_ms)
                 APP_CompetitionMenu_NotifyFinished();
             }
             break;
-
+                
         case APP_COMP_MODE_STATIC_RECIPROCATE:
             APP_TaskStaticBall_Task(now_ms);
             if (APP_TaskStaticBall_IsFinished()) {

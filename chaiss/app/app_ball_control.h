@@ -20,9 +20,9 @@ extern "C" {
 #define APP_BALL_ANGLE_LIMIT_DEG            (6.0f)      /* 横梁角度输出总限幅，单位deg */
 #define APP_BALL_SERVO_DIR                  (1.0f)      /* 舵机方向修正，反向时改为-1 */
 #define APP_BALL_SERVO_POS_PER_DEG          (2.0f)     /* 横梁每变化1deg对应的舵机位置增量 */
-#define APP_BALL_MEASUREMENT_LIMIT_CM       (50.0f)     /* 外部位置输入合理范围，单位cm */
+#define APP_BALL_MEASUREMENT_LIMIT_CM       (16.0f)     /* 外部位置输入合理范围，单位cm */
 #define APP_BALL_SPEED_LPF_ALPHA            (0.30f)     /* 球速一阶低通新数据权重，范围0~1 */
-#define APP_BALL_DEFAULT_KP                 (0.80f)     /* 钢球位置环默认Kp */
+#define APP_BALL_DEFAULT_KP                 (0.40f)     /* 钢球位置环默认Kp */
 #define APP_BALL_DEFAULT_KI                 (0.00f)     /* 钢球位置环默认Ki */
 #define APP_BALL_DEFAULT_KD                 (0.15f)     /* 钢球位置环默认Kd */
 #define APP_BALL_INTEGRAL_LIMIT_DEG         (3.0f)      /* 位置环积分输出限幅，单位deg */

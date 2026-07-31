@@ -30,7 +30,8 @@ typedef enum
     APP_COMP_UI_COUNTDOWN,                /* 3秒倒计时页 */
     APP_COMP_UI_RUNNING,                  /* 运行页 */
     APP_COMP_UI_FINISHED,                 /* 外部通知完成页 */
-    APP_COMP_UI_FAULT                     /* 外部通知故障页 */
+    APP_COMP_UI_FAULT,                    /* 外部通知故障页 */
+    APP_COMP_UI_SERVO_ZERO_CALIBRATION    /* 舵机水平零点校准页 */
 } APP_CompetitionUiState_t;
 
 /*

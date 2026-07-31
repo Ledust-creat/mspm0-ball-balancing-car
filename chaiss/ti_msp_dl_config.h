@@ -274,15 +274,22 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 #define EncoderB_E2B_PORT                                                (GPIOB)
 #define EncoderB_E2B_PIN                                        (DL_GPIO_PIN_23)
 #define EncoderB_E2B_IOMUX                                       (IOMUX_PINCM51)
-/* Port definition for Pin Group KEY */
-#define KEY_PORT                                                         (GPIOA)
-
 /* Defines for SELECT: GPIOA.9 with pinCMx 20 on package pin 55 */
+#define KEY_SELECT_PORT                                                  (GPIOA)
 #define KEY_SELECT_PIN                                           (DL_GPIO_PIN_9)
 #define KEY_SELECT_IOMUX                                         (IOMUX_PINCM20)
 /* Defines for CONFIRM: GPIOA.8 with pinCMx 19 on package pin 54 */
+#define KEY_CONFIRM_PORT                                                 (GPIOA)
 #define KEY_CONFIRM_PIN                                          (DL_GPIO_PIN_8)
 #define KEY_CONFIRM_IOMUX                                        (IOMUX_PINCM19)
+/* Defines for ADD: GPIOB.5 with pinCMx 18 on package pin 53 */
+#define KEY_ADD_PORT                                                     (GPIOB)
+#define KEY_ADD_PIN                                              (DL_GPIO_PIN_5)
+#define KEY_ADD_IOMUX                                            (IOMUX_PINCM18)
+/* Defines for SUB: GPIOB.4 with pinCMx 17 on package pin 52 */
+#define KEY_SUB_PORT                                                     (GPIOB)
+#define KEY_SUB_PIN                                              (DL_GPIO_PIN_4)
+#define KEY_SUB_IOMUX                                            (IOMUX_PINCM17)
 
 
 /* clang-format on */

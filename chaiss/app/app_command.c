@@ -3,6 +3,7 @@
 #include "app_chassis_control.h"
 #include "app_gyro_control.h"
 #include "app_line_follow.h"
+#include "app_task_static_ball.h"
 #include "bsp_bluetooth.h"
 #include "dve_chassis.h"
 #include "dve_hts25l.h"
@@ -25,6 +26,7 @@ static bool s_receiving;
 static char s_text_buf[512];
 static uint32_t s_last_wave_ms;
 static uint32_t s_last_text_ms;
+static uint32_t s_last_ball_debug_ms;
 
 /*
 *********************************************************************************************************
@@ -43,6 +45,7 @@ static float get_tune_output(void);
 static void set_one_pid_param(uint8_t cmd, float value);
 static void send_wave_status(void);
 static void send_text_status(void);
+static void send_ball_debug_status(uint32_t now_ms);
 static char *append_str(char *dst, const char *src);
 static char *append_i32(char *dst, int32_t value);
 static char *append_f2(char *dst, float value);
@@ -62,6 +65,7 @@ void APP_Command_Init(void)
     s_receiving = false;
     s_last_wave_ms = 0U;
     s_last_text_ms = 0U;
+    s_last_ball_debug_ms = 0U;
 }
 
 /*
@@ -460,6 +464,45 @@ static char *append_f2(char *dst, float value)
     return dst;
 }
 
+/*
+*********************************************************************************************************
+*   函 数 名: send_ball_debug_status
+*   功能说明: 低频发送静态钢球状态机关键数据，用于判断制动和PID接管时机
+*   形    参: now_ms - 当前系统时间，单位ms
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+static void send_ball_debug_status(uint32_t now_ms)
+{
+    APP_BallControlStatus_t ball;
+    char *p = s_text_buf;
+
+    APP_BallControl_GetStatus(&ball);
+    p = append_str(p, "SB,t=");
+    p = append_i32(p, (int32_t)now_ms);                              // 系统时间，用于对齐视频和状态切换
+    p = append_str(p, ",st=");
+    p = append_i32(p, (int32_t)APP_TaskStaticBall_GetState());      // 0空闲、1加速、2制动、3等待、4 PID保持
+    p = append_str(p, ",bst=");
+    p = append_i32(p, (int32_t)ball.state);                         // 钢球控制器状态，用于确认PID是否仍在运行
+    p = append_str(p, ",en=");
+    p = append_i32(p, ball.enabled ? 1 : 0);                        // 1表示钢球控制器仍使能
+    p = append_str(p, ",x=");
+    p = append_f2(p, ball.measured_position_cm);                    // 当前视觉位置，单位cm
+    p = append_str(p, ",tgt=");
+    p = append_f2(p, ball.target_position_cm);                      // 当前闭环目标，非HOLD阶段可能仍为上次目标
+    p = append_str(p, ",v=");
+    p = append_f2(p, ball.estimated_velocity_cm_s);                 // 估算速度，符号用于判断是否已经反向
+    p = append_str(p, ",err=");
+    p = append_f2(p, ball.error_cm);                                // PID当前误差，等于目标减实测位置
+    p = append_str(p, ",ang=");
+    p = append_f2(p, ball.angle_cmd_deg);                           // PID最终角度输出
+    p = append_str(p, ",pos=");
+    p = append_i32(p, (int32_t)ball.servo_command);                 // 实际下发的舵机位置命令
+    append_str(p, "\r\n");
+
+    Bluetooth_SendString(s_text_buf);
+}
+
 static void send_wave_status(void)
 {
     Command_PackAndSend(CMD_STATUS_ERROR, get_tune_error());
@@ -619,6 +662,12 @@ void APP_Command_Task(void)
     if ((now - s_last_text_ms) >= APP_CMD_TEXT_PERIOD_MS) {
         s_last_text_ms = now;
         send_text_status();
+    }
+#endif
+#if (APP_CMD_ENABLE_BALL_DEBUG != 0U)
+    if ((now - s_last_ball_debug_ms) >= APP_CMD_BALL_DEBUG_PERIOD_MS) {
+        s_last_ball_debug_ms = now;
+        send_ball_debug_status(now);
     }
 #endif
 }

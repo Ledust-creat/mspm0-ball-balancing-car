@@ -1,4 +1,6 @@
 #include "app_competition_menu.h"
+#include "app_ball_control.h"
+#include "app_competition_control.h"
 #include "bsp_key.h"
 #include "interrupt.h"
 #include "OLED.h"
@@ -13,6 +15,10 @@
 #define APP_MENU_COUNTDOWN_MS            (3000U)    /* 倒计时时长，单位ms */
 #define APP_MENU_DEBOUNCE_COUNT          (3U)       /* 按键消抖连续稳定次数，单位次 */
 #define APP_MENU_LINE_WIDTH              (16U)      /* OLED一行字符数，单位char */
+#define APP_MENU_ITEM_COUNT              (APP_COMP_MODE_COUNT + 1U) /* 五个比赛项加一个校准工具项 */
+#define APP_MENU_SERVO_ZERO_ITEM         (APP_COMP_MODE_COUNT)
+#define APP_MENU_KEY_REPEAT_DELAY_MS     (500U)     /* 长按开始连发等待时间 */
+#define APP_MENU_KEY_REPEAT_PERIOD_MS    (100U)     /* 长按连续调整周期 */
 
 /*
 *********************************************************************************************************
@@ -25,6 +31,9 @@ typedef struct
     bool stable_state;                    /* 消抖后的稳定状态，true表示按下 */
     uint8_t stable_count;                 /* 连续相同采样次数 */
     bool pressed_event;                   /* 单次按下事件，消费后清除 */
+    bool repeat_event;                    /* 长按连发事件 */
+    uint32_t press_start_ms;              /* 稳定按下起始时刻 */
+    uint32_t last_repeat_ms;              /* 最近一次连发时刻 */
 } APP_KeyFilter_t;
 
 /*
@@ -32,19 +41,25 @@ typedef struct
 *   全局变量
 *********************************************************************************************************
 */
-static const char * const s_mode_name_table[APP_COMP_MODE_COUNT] = {
+static const char * const s_mode_name_table[APP_MENU_ITEM_COUNT] = {
     "TRACK LAP",
     "STATIC O+5-5",
     "AB CENTER",
     "LAP CENTER",
-    "LAP TARGET"
+    "LAP TARGET",
+    "SERVO ZERO"
 };
 
 static APP_KeyFilter_t s_select_key;              /* SELECT按键消抖状态 */
 static APP_KeyFilter_t s_confirm_key;             /* CONFIRM按键消抖状态 */
+static APP_KeyFilter_t s_zero_dec_key;            /* 水平零点减小按键状态 */
+static APP_KeyFilter_t s_zero_inc_key;            /* 水平零点增加按键状态 */
 
 static APP_CompetitionMode_t s_selected_mode;     /* 当前选中的比赛小题 */
+static uint8_t s_selected_item;                    /* 当前菜单项，含校准工具项 */
 static APP_CompetitionUiState_t s_ui_state;       /* 当前OLED菜单状态 */
+static uint16_t s_servo_zero_backup;               /* 进入校准前的水平零点 */
+static uint16_t s_servo_zero_edit;                 /* 校准页面正在编辑的水平零点 */
 
 static bool s_start_request;                      /* 倒计时结束产生的一次性启动请求 */
 static bool s_stop_request;                       /* 用户停止产生的一次性停止请求 */
@@ -66,12 +81,13 @@ static uint32_t s_last_display_time_ds;           /* 上一次OLED显示的0.1s�
 *   函数声明
 *********************************************************************************************************
 */
-static void key_filter_update(APP_KeyFilter_t *key, bool raw_pressed);
-static void menu_scan_keys(void);
+static void key_filter_update(APP_KeyFilter_t *key, bool raw_pressed, uint32_t now_ms);
+static void menu_scan_keys(uint32_t now_ms);
 static void menu_update_state(uint32_t now_ms);
 static void menu_enter_select(void);
 static void menu_enter_countdown(uint32_t now_ms);
 static void menu_enter_running(uint32_t now_ms);
+static void menu_enter_servo_zero(void);
 static void menu_mark_full_redraw(void);
 static void menu_draw_current_page(uint32_t now_ms);
 static void menu_draw_running_page_once(void);
@@ -89,11 +105,12 @@ static void menu_append_u32(char *buf, uint32_t value, uint8_t width);
 *   返 回 值: 无
 *********************************************************************************************************
 */
-static void key_filter_update(APP_KeyFilter_t *key, bool raw_pressed)
+static void key_filter_update(APP_KeyFilter_t *key, bool raw_pressed, uint32_t now_ms)
 {
     bool old_stable;
 
     key->pressed_event = false;
+    key->repeat_event = false;
     if (raw_pressed == key->raw_last) {
         if (key->stable_count < APP_MENU_DEBOUNCE_COUNT) {
             key->stable_count++;
@@ -108,6 +125,18 @@ static void key_filter_update(APP_KeyFilter_t *key, bool raw_pressed)
         old_stable = key->stable_state;
         key->stable_state = raw_pressed;
         key->pressed_event = (!old_stable && key->stable_state);
+        if (key->pressed_event) {
+            key->press_start_ms = now_ms;
+            key->last_repeat_ms = now_ms;
+        }
+    }
+
+    // 调节键稳定按住500ms后，每100ms产生一次重复事件
+    if (key->stable_state &&
+        ((uint32_t)(now_ms - key->press_start_ms) >= APP_MENU_KEY_REPEAT_DELAY_MS) &&
+        ((uint32_t)(now_ms - key->last_repeat_ms) >= APP_MENU_KEY_REPEAT_PERIOD_MS)) {
+        key->last_repeat_ms = now_ms;
+        key->repeat_event = true;
     }
 }
 
@@ -119,10 +148,32 @@ static void key_filter_update(APP_KeyFilter_t *key, bool raw_pressed)
 *   返 回 值: 无
 *********************************************************************************************************
 */
-static void menu_scan_keys(void)
+static void menu_scan_keys(uint32_t now_ms)
 {
-    key_filter_update(&s_select_key, BSP_Key_IsSelectPressed());
-    key_filter_update(&s_confirm_key, BSP_Key_IsConfirmPressed());
+    key_filter_update(&s_select_key, BSP_Key_IsSelectPressed(), now_ms);
+    key_filter_update(&s_confirm_key, BSP_Key_IsConfirmPressed(), now_ms);
+    key_filter_update(&s_zero_dec_key, BSP_Key_IsZeroDecPressed(), now_ms);
+    key_filter_update(&s_zero_inc_key, BSP_Key_IsZeroIncPressed(), now_ms);
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: menu_enter_servo_zero
+*   功能说明: 停止当前任务并进入舵机水平零点校准页
+*   形    参: 无
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+static void menu_enter_servo_zero(void)
+{
+    APP_CompetitionControl_Stop(); // 校准前关闭底盘、比赛任务和钢球闭环
+    s_servo_zero_backup = APP_BallControl_GetServoLevelPosition();
+    s_servo_zero_edit = s_servo_zero_backup;
+    APP_BallControl_SetServoTestPosition(s_servo_zero_edit);
+    s_ui_state = APP_COMP_UI_SERVO_ZERO_CALIBRATION;
+    s_start_request = false;
+    s_run_page_initialized = false;
+    menu_mark_full_redraw();
 }
 
 /*
@@ -206,11 +257,44 @@ static void menu_update_state(uint32_t now_ms)
     switch (s_ui_state) {
         case APP_COMP_UI_SELECT:
             if (s_select_key.pressed_event) {
-                s_selected_mode = (APP_CompetitionMode_t)((s_selected_mode + 1U) % APP_COMP_MODE_COUNT);
+                s_selected_item = (uint8_t)((s_selected_item + 1U) % APP_MENU_ITEM_COUNT);
+                if (s_selected_item < APP_COMP_MODE_COUNT) {
+                    s_selected_mode = (APP_CompetitionMode_t)s_selected_item;
+                }
                 menu_mark_full_redraw();
             }
             if (s_confirm_key.pressed_event) {
-                menu_enter_countdown(now_ms);
+                if (s_selected_item == APP_MENU_SERVO_ZERO_ITEM) {
+                    menu_enter_servo_zero();
+                } else {
+                    menu_enter_countdown(now_ms);
+                }
+            }
+            break;
+
+        case APP_COMP_UI_SERVO_ZERO_CALIBRATION:
+            // SELECT取消并恢复备份，CONFIRM保存当前RAM零点
+            if (s_select_key.pressed_event) {
+                APP_BallControl_SetServoLevelPosition(s_servo_zero_backup); // 取消时恢复进入前零点
+                APP_BallControl_SetEnable(0U);
+                menu_enter_select();
+            } else if (s_confirm_key.pressed_event) {
+                APP_BallControl_SetServoLevelPosition(s_servo_zero_edit); // 保存仅保留在RAM
+                APP_BallControl_SetEnable(0U);
+                menu_enter_select();
+            } else if (!(s_zero_dec_key.stable_state && s_zero_inc_key.stable_state)) {
+                // 两个调节键同时按下时不改变零点，避免方向冲突
+                if (s_zero_dec_key.pressed_event || s_zero_dec_key.repeat_event) {
+                    APP_BallControl_SetServoLevelPosition((uint16_t)(s_servo_zero_edit - 1U));
+                    s_servo_zero_edit = APP_BallControl_GetServoLevelPosition();
+                    APP_BallControl_SetServoTestPosition(s_servo_zero_edit);
+                    s_oled_dirty = true;
+                } else if (s_zero_inc_key.pressed_event || s_zero_inc_key.repeat_event) {
+                    APP_BallControl_SetServoLevelPosition((uint16_t)(s_servo_zero_edit + 1U));
+                    s_servo_zero_edit = APP_BallControl_GetServoLevelPosition();
+                    APP_BallControl_SetServoTestPosition(s_servo_zero_edit);
+                    s_oled_dirty = true;
+                }
             }
             break;
 
@@ -245,7 +329,10 @@ static void menu_update_state(uint32_t now_ms)
 
         case APP_COMP_UI_FINISHED:
             if (s_select_key.pressed_event) {
-                s_selected_mode = (APP_CompetitionMode_t)((s_selected_mode + 1U) % APP_COMP_MODE_COUNT);
+                s_selected_item = (uint8_t)((s_selected_item + 1U) % APP_MENU_ITEM_COUNT);
+                if (s_selected_item < APP_COMP_MODE_COUNT) {
+                    s_selected_mode = (APP_CompetitionMode_t)s_selected_item;
+                }
                 menu_enter_select();
             }
             if (s_confirm_key.pressed_event) {
@@ -266,6 +353,10 @@ static void menu_update_state(uint32_t now_ms)
 
     s_select_key.pressed_event = false;
     s_confirm_key.pressed_event = false;
+    s_zero_dec_key.pressed_event = false;
+    s_zero_dec_key.repeat_event = false;
+    s_zero_inc_key.pressed_event = false;
+    s_zero_inc_key.repeat_event = false;
 }
 
 /*
@@ -411,6 +502,8 @@ static void menu_update_running_time_digits(uint32_t now_ms)
 static void menu_draw_current_page(uint32_t now_ms)
 {
     char line[APP_MENU_LINE_WIDTH + 1U] = {0};
+    char pos_line[APP_MENU_LINE_WIDTH + 1U] = {0};
+    char limit_line[APP_MENU_LINE_WIDTH + 1U] = {0};
     uint32_t run_ds;
 
     if (s_oled_full_redraw) {
@@ -427,13 +520,35 @@ static void menu_draw_current_page(uint32_t now_ms)
             line[4] = 'S';
             line[5] = 'T';
             line[6] = ' ';
-            line[7] = (char)('1' + s_selected_mode);
+            line[7] = (char)('1' + s_selected_item);
             line[8] = '/';
-            line[9] = (char)('0' + APP_COMP_MODE_COUNT);
+            line[9] = (char)('0' + APP_MENU_ITEM_COUNT);
             menu_show_line(1U, line);
-            menu_show_line(2U, s_mode_name_table[s_selected_mode]);
+            menu_show_line(2U, s_mode_name_table[s_selected_item]);
             menu_show_line(3U, "SEL:NEXT");
-            menu_show_line(4U, "OK:START");
+            menu_show_line(4U, (s_selected_item == APP_MENU_SERVO_ZERO_ITEM) ?
+                               "OK:ENTER" : "OK:START");
+            break;
+
+        case APP_COMP_UI_SERVO_ZERO_CALIBRATION:
+            pos_line[0] = 'P';
+            pos_line[1] = 'O';
+            pos_line[2] = 'S';
+            pos_line[3] = ':';
+            menu_append_u32(&pos_line[4], s_servo_zero_edit, 3U);
+            limit_line[0] = 'M';
+            limit_line[1] = 'I';
+            limit_line[2] = 'N';
+            menu_append_u32(&limit_line[3], APP_BALL_SERVO_LEVEL_MIN, 3U);
+            limit_line[6] = ' ';
+            limit_line[7] = 'M';
+            limit_line[8] = 'A';
+            limit_line[9] = 'X';
+            menu_append_u32(&limit_line[10], APP_BALL_SERVO_LEVEL_MAX, 3U);
+            menu_show_line(1U, "SERVO ZERO -/+");
+            menu_show_line(2U, pos_line);
+            menu_show_line(3U, limit_line);
+            menu_show_line(4U, "SEL:X OK:SAVE");
             break;
 
         case APP_COMP_UI_COUNTDOWN:
@@ -515,7 +630,20 @@ void APP_CompetitionMenu_Init(void)
     s_confirm_key.stable_count = 0U;
     s_confirm_key.pressed_event = false;
 
+    s_select_key.repeat_event = false;
+    s_confirm_key.repeat_event = false;
+    s_select_key.press_start_ms = 0U;
+    s_confirm_key.press_start_ms = 0U;
+    s_select_key.last_repeat_ms = 0U;
+    s_confirm_key.last_repeat_ms = 0U;
+
+    s_zero_dec_key = (APP_KeyFilter_t){0};
+    s_zero_inc_key = (APP_KeyFilter_t){0};
+
     s_selected_mode = APP_COMP_MODE_TRACK_LAP;
+    s_selected_item = 0U;
+    s_servo_zero_backup = APP_BallControl_GetServoLevelPosition();
+    s_servo_zero_edit = s_servo_zero_backup;
     s_ui_state = APP_COMP_UI_SELECT;
     s_start_request = false;
     s_stop_request = false;
@@ -561,7 +689,7 @@ void APP_CompetitionMenu_UpdateTask(void)
 
     if ((uint32_t)(now_ms - s_last_key_scan_ms) >= APP_MENU_KEY_SCAN_MS) {
         s_last_key_scan_ms = now_ms;
-        menu_scan_keys();
+        menu_scan_keys(now_ms);
     }
 
     menu_update_state(now_ms);

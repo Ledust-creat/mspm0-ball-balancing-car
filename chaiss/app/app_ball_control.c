@@ -1,4 +1,5 @@
 #include "app_ball_control.h"
+#include "app_chassis_control.h"
 #include "app_gyro_control.h"
 #include "dve_hts25l.h"
 #include "interrupt.h"
@@ -12,6 +13,8 @@ static PID_t s_position_pid;                              /* 钢球位置闭环P
 static APP_BallControlConfig_t s_config;                  /* 当前控球配置参数 */
 static APP_BallControlStatus_t s_status;                  /* 当前对外状态快照 */
 static APP_BallVisionCalibration_t s_vision_calibration;  /* 视觉像素投影标定 */
+static uint16_t s_servo_level_position = APP_BALL_SERVO_LEVEL_DEFAULT; /* 当前水平零点，仅RAM保存 */
+static int16_t s_servo_control_offset;                  /* 当前任务相对校准零点的持续控制偏移 */
 
 static uint32_t s_last_control_tick_ms;                   /* 上一次新视觉帧控球时刻，单位ms */
 static uint32_t s_last_safety_ms;                         /* 最近一次安全检查时刻，单位ms */
@@ -80,8 +83,8 @@ static void reset_control(void)
 */
 static void command_center(void)
 {
-    (void)DVE_HTS25L_SetPosition(s_config.servo_level_position, DVE_HTS25L_MOVE_TIME_MS);
-    s_status.servo_command = s_config.servo_level_position;
+    s_status.servo_command = APP_BallControl_PositionFromLevelOffset(s_servo_control_offset);
+    (void)DVE_HTS25L_SetPosition(s_status.servo_command, DVE_HTS25L_MOVE_TIME_MS);
     s_status.angle_cmd_deg = 0.0f;
 }
 
@@ -96,23 +99,43 @@ static void command_center(void)
 static float get_feedforward_deg(uint32_t frame_tick_ms)
 {
 #if (APP_BALL_ACCEL_FF_ENABLE != 0U)
-    APP_GyroAccelData_t imu_data;
+    float a_plan_g = 0.0f;
+    float a_forward_g;
+    float a_lateral_g = 0.0f;
+    float a_tube_g;
     float feedforward;
 
-    if (!APP_GyroControl_GetLatestAccel(&imu_data) ||
-        ((uint32_t)(frame_tick_ms - imu_data.update_tick_ms) > APP_IMU_DATA_TIMEOUT_MS)) {
-        s_status.imu_accel_valid = false;
-        s_status.accel_feedforward_deg = 0.0f;
-        return 0.0f;
-    }
+#if (APP_BALL_PLAN_ACCEL_FF_ENABLE != 0U)
+    a_plan_g = APP_ChassisControl_GetPlannedAccelCmps2() / 980.665f; // cm/s^2换算为g
+#endif
+    a_forward_g = a_plan_g;
 
-    feedforward = ((APP_BALL_ACCEL_X_FF_DEG_PER_G * imu_data.accel_forward_g) +
-                   (APP_BALL_ACCEL_Y_FF_DEG_PER_G * imu_data.accel_lateral_g)) *
-                  APP_BALL_ACCEL_FF_SIGN;
+#if (APP_BALL_IMU_ACCEL_FF_ENABLE != 0U)
+    {
+        APP_GyroAccelData_t imu_data;
+
+        if (APP_GyroControl_GetLatestAccel(&imu_data) &&
+            ((uint32_t)(frame_tick_ms - imu_data.update_tick_ms) <= APP_IMU_DATA_TIMEOUT_MS)) {
+            // 规划加速度作为主体，IMU只修正模型与实车之间的残差
+            a_forward_g = a_plan_g + APP_BALL_ACCEL_RESIDUAL_GAIN *
+                          (imu_data.accel_forward_g - a_plan_g);
+            a_lateral_g = imu_data.accel_lateral_g;
+            s_status.imu_accel_valid = true;
+        } else {
+            s_status.imu_accel_valid = false;
+        }
+    }
+#else
+    s_status.imu_accel_valid = false;
+#endif
+
+    // 将车体前向和横向加速度投影到钢球导轨轴向
+    a_tube_g = APP_BALL_TUBE_FORWARD_GAIN * a_forward_g +
+               APP_BALL_TUBE_LATERAL_GAIN * a_lateral_g;
+    feedforward = APP_BALL_ACCEL_FF_DEG_PER_G * a_tube_g;
     feedforward = limit_float(feedforward,
                               -APP_BALL_ACCEL_FF_LIMIT_DEG,
                               APP_BALL_ACCEL_FF_LIMIT_DEG);
-    s_status.imu_accel_valid = true;
     s_status.accel_feedforward_deg = feedforward;
     return feedforward;
 #else
@@ -136,7 +159,7 @@ static uint16_t angle_to_servo_position(float angle_deg, bool *saturated)
     float position;
     int32_t rounded_position;
 
-    position = (float)s_config.servo_level_position +
+    position = (float)APP_BallControl_PositionFromLevelOffset(s_servo_control_offset) +
                APP_BALL_SERVO_DIR * angle_deg * APP_BALL_SERVO_POS_PER_DEG;
     rounded_position = (int32_t)((position >= 0.0f) ? (position + 0.5f) : (position - 0.5f));
 
@@ -168,7 +191,8 @@ void APP_BallControl_Init(void)
     s_config.position_kd = APP_BALL_DEFAULT_KD;
     s_config.target_position_cm = 0.0f;
     s_config.accel_forward_ff_gain = 0.0f;
-    s_config.servo_level_position = DVE_HTS25L_POS_CENTER;
+    s_servo_level_position = APP_BALL_SERVO_LEVEL_DEFAULT;
+    s_servo_control_offset = 0;
     s_config.servo_position_min = DVE_HTS25L_POS_MIN;
     s_config.servo_position_max = DVE_HTS25L_POS_MAX;
 
@@ -183,7 +207,7 @@ void APP_BallControl_Init(void)
     s_status.fault = APP_BALL_FAULT_NONE;
     s_status.target_position_cm = s_config.target_position_cm;
     s_status.measured_position_cm = 0.0f;
-    s_status.servo_command = s_config.servo_level_position;
+    s_status.servo_command = s_servo_level_position;
     s_status.last_vision_tick_ms = now;
     s_status.vision_valid = false;
     s_status.enabled = false;
@@ -202,6 +226,7 @@ void APP_BallControl_Init(void)
 
     reset_control();
     DVE_HTS25L_Init();
+    command_center(); // APP层统一发送运行时水平零点，避免DVE固定中位覆盖校准基准
 }
 
 /*
@@ -268,6 +293,18 @@ void APP_BallControl_UpdateFromVision(const APP_K230BallFrame_t *frame)
                 s_position_pid.Iout +
                 s_position_pid.Dout +
                 get_feedforward_deg(frame->tick_ms);
+
+    // 小球存在明显位置误差但基本静止时，补足最低有效倾角以克服静摩擦和机构死区
+    if (((s_status.error_cm > APP_BALL_STATIC_ERROR_CM) ||
+         (s_status.error_cm < -APP_BALL_STATIC_ERROR_CM)) &&
+        (s_status.estimated_velocity_cm_s < APP_BALL_STATIC_SPEED_CM_S) &&
+        (s_status.estimated_velocity_cm_s > -APP_BALL_STATIC_SPEED_CM_S) &&
+        (angle_raw < APP_BALL_STATIC_MIN_ANGLE_DEG) &&
+        (angle_raw > -APP_BALL_STATIC_MIN_ANGLE_DEG)) {
+        angle_raw = (s_status.error_cm > 0.0f) ? APP_BALL_STATIC_MIN_ANGLE_DEG :
+                                                -APP_BALL_STATIC_MIN_ANGLE_DEG;
+    }
+
     angle_limited = limit_float(angle_raw,
                                 -APP_BALL_ANGLE_LIMIT_DEG,
                                 APP_BALL_ANGLE_LIMIT_DEG);
@@ -582,6 +619,73 @@ void APP_BallControl_SetServoTestPosition(uint16_t pos)
     reset_control();
     (void)DVE_HTS25L_SetPosition(pos, DVE_HTS25L_MOVE_TIME_MS);
     s_status.servo_command = DVE_HTS25L_GetCommandPosition();
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_SetServoLevelPosition
+*   功能说明: 设置RAM中的舵机水平零点
+*   形    参: position - 水平零点位置
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_BallControl_SetServoLevelPosition(uint16_t position)
+{
+    if (position < APP_BALL_SERVO_LEVEL_MIN) {
+        position = APP_BALL_SERVO_LEVEL_MIN;
+    } else if (position > APP_BALL_SERVO_LEVEL_MAX) {
+        position = APP_BALL_SERVO_LEVEL_MAX;
+    }
+
+    s_servo_level_position = position;
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_GetServoLevelPosition
+*   功能说明: 获取当前RAM舵机水平零点
+*   形    参: 无
+*   返 回 值: 当前水平零点
+*********************************************************************************************************
+*/
+uint16_t APP_BallControl_GetServoLevelPosition(void)
+{
+    return s_servo_level_position;
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_PositionFromLevelOffset
+*   功能说明: 将水平零点相对偏移换算为安全绝对位置
+*   形    参: offset - 相对水平零点的有符号偏移
+*   返 回 值: 限幅后的舵机绝对位置
+*********************************************************************************************************
+*/
+uint16_t APP_BallControl_PositionFromLevelOffset(int16_t offset)
+{
+    int32_t position = (int32_t)s_servo_level_position + (int32_t)offset;
+
+    if (position < (int32_t)DVE_HTS25L_POS_MIN) {
+        position = (int32_t)DVE_HTS25L_POS_MIN;
+    } else if (position > (int32_t)DVE_HTS25L_POS_MAX) {
+        position = (int32_t)DVE_HTS25L_POS_MAX;
+    }
+
+    return (uint16_t)position;
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_SetServoControlOffset
+*   功能说明: 设置当前任务相对现场校准零点的持续控制偏移
+*   形    参: offset - 有符号舵机位置偏移
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_BallControl_SetServoControlOffset(int16_t offset)
+{
+    // 这里只改变任务控制基准，不修改RAM中保存的现场水平零点
+    s_servo_control_offset = offset;
 }
 
 bool APP_BallControl_IsFault(void)

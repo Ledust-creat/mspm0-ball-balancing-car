@@ -26,7 +26,7 @@ void BSP_Key_Init(void)
 */
 bool BSP_Key_IsSelectPressed(void)
 {
-    return (DL_GPIO_readPins(KEY_PORT, KEY_SELECT_PIN) == 0U);
+    return (DL_GPIO_readPins(KEY_SELECT_PORT, KEY_SELECT_PIN) == 0U);
 }
 
 /*
@@ -39,5 +39,31 @@ bool BSP_Key_IsSelectPressed(void)
 */
 bool BSP_Key_IsConfirmPressed(void)
 {
-    return (DL_GPIO_readPins(KEY_PORT, KEY_CONFIRM_PIN) == 0U);
+    return (DL_GPIO_readPins(KEY_CONFIRM_PORT, KEY_CONFIRM_PIN) == 0U);
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: BSP_Key_IsZeroDecPressed
+*   功能说明: 读取舵机零点减小按键状态
+*   形    参: 无
+*   返 回 值: true按下，false松开
+*********************************************************************************************************
+*/
+bool BSP_Key_IsZeroDecPressed(void)
+{
+    return (DL_GPIO_readPins(KEY_SUB_PORT, KEY_SUB_PIN) == 0U);
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: BSP_Key_IsZeroIncPressed
+*   功能说明: 读取舵机零点增加按键状态
+*   形    参: 无
+*   返 回 值: true按下，false松开
+*********************************************************************************************************
+*/
+bool BSP_Key_IsZeroIncPressed(void)
+{
+    return (DL_GPIO_readPins(KEY_ADD_PORT, KEY_ADD_PIN) == 0U);
 }

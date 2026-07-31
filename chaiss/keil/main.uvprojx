@@ -593,6 +593,16 @@
               <FilePath>..\app\app_task_static_ball.h</FilePath>
             </File>
             <File>
+              <FileName>app_task_mobile_ball.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\app_task_mobile_ball.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_task_mobile_ball.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\app_task_mobile_ball.h</FilePath>
+            </File>
+            <File>
               <FileName>app_k230_input.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\app\app_k230_input.c</FilePath>

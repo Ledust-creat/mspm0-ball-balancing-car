@@ -129,7 +129,7 @@ static bool set_servo_load(void)
 /*
 *********************************************************************************************************
 *   函 数 名: DVE_HTS25L_Init
-*   功能说明: 初始化HTS-25L并回到安全中位
+*   功能说明: 初始化HTS-25L总线、位置模式和扭矩输出，初始位置由APP层发送
 *   形    参: 无
 *   返 回 值: 无
 *********************************************************************************************************
@@ -139,7 +139,6 @@ void DVE_HTS25L_Init(void)
     BSP_ServoBus_Init();
     (void)set_servo_mode();
     (void)set_servo_load();
-    (void)DVE_HTS25L_SetPosition(DVE_HTS25L_POS_CENTER, DVE_HTS25L_MOVE_TIME_MS);
 }
 
 /*

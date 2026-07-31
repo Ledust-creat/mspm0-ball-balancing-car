@@ -15,6 +15,8 @@ extern "C" {
 void BSP_Key_Init(void);
 bool BSP_Key_IsSelectPressed(void);
 bool BSP_Key_IsConfirmPressed(void);
+bool BSP_Key_IsZeroDecPressed(void);
+bool BSP_Key_IsZeroIncPressed(void);
 
 #ifdef __cplusplus
 }

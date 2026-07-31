@@ -120,6 +120,8 @@ static void parse_frame(const BSP_K230UartFrame_t *bsp_frame)
 */
 void APP_K230Input_Init(void)
 {
+    BSP_K230Uart_Init();
+
     memset(&s_k230_state, 0, sizeof(s_k230_state));
     s_latest_frame.x_cm = 0.0f;
     s_latest_frame.tick_ms = 0U;

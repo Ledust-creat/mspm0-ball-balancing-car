@@ -94,6 +94,7 @@ extern "C" {
 *********************************************************************************************************
 */
 void APP_Command_Task(void);
+void APP_Command_Init(void);
 void Command_Parse(uint8_t *buf, uint8_t len);
 void Command_PackAndSend(uint8_t cmd, float data);
 void Command_SendStatus(void);

@@ -502,6 +502,9 @@ static void menu_draw_current_page(uint32_t now_ms)
 */
 void APP_CompetitionMenu_Init(void)
 {
+    OLED_Init();
+    BSP_Key_Init();
+
     s_select_key.raw_last = false;
     s_select_key.stable_state = false;
     s_select_key.stable_count = 0U;

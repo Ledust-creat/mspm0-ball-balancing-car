@@ -235,13 +235,6 @@ void APP_BallControl_UpdateFromVision(const APP_K230BallFrame_t *frame)
     if (frame == 0) {
         return;
     }
-
-    if ((s_status.state == APP_BALL_STATE_STOP) ||
-        (s_status.state == APP_BALL_STATE_OPEN_LOOP_TEST) ||
-        (s_status.state == APP_BALL_STATE_FAULT)) {
-        return;
-    }
-
     elapsed_ms = frame->tick_ms - s_last_control_tick_ms;
     if (elapsed_ms == 0U) {
         elapsed_ms = 1U;
@@ -249,6 +242,14 @@ void APP_BallControl_UpdateFromVision(const APP_K230BallFrame_t *frame)
     s_last_control_tick_ms = frame->tick_ms;
 
     APP_BallControl_SetMeasuredPositionCm(frame->x_cm, frame->tick_ms);
+    
+    if ((s_status.state == APP_BALL_STATE_STOP) ||
+        (s_status.state == APP_BALL_STATE_OPEN_LOOP_TEST) ||
+        (s_status.state == APP_BALL_STATE_FAULT)) {
+        return;
+    }
+
+    
 
     dt_s = (float)elapsed_ms * 0.001f;
     s_status.error_cm = s_status.target_position_cm - s_status.measured_position_cm;

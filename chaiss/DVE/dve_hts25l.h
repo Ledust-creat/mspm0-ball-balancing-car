@@ -14,8 +14,8 @@ extern "C" {
 *********************************************************************************************************
 */
 #define DVE_HTS25L_DEFAULT_ID              (0xFEU)    /* 单舵机总线使用广播ID */
-#define DVE_HTS25L_POS_MIN                 (270U)     /* 机械安全最小位置 */
-#define DVE_HTS25L_POS_CENTER              (420U)     /* 舵机中位 */
+#define DVE_HTS25L_POS_MIN                 (200U)     /* 机械安全最小位置 */
+#define DVE_HTS25L_POS_CENTER              (520U)     /* 舵机中位 */
 #define DVE_HTS25L_POS_MAX                 (600U)     /* 机械安全最大位置 */
 #define DVE_HTS25L_MOVE_TIME_MS            (30U)      /* 闭环命令默认运动时间 */
 

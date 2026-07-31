@@ -563,6 +563,26 @@
               <FilePath>..\app\app_competition_menu.h</FilePath>
             </File>
             <File>
+              <FileName>app_competition_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\app_competition_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_competition_control.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\app_competition_control.h</FilePath>
+            </File>
+            <File>
+              <FileName>app_task_track_lap.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\app_task_track_lap.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_task_track_lap.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\app_task_track_lap.h</FilePath>
+            </File>
+            <File>
               <FileName>app_k230_input.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\app\app_k230_input.c</FilePath>

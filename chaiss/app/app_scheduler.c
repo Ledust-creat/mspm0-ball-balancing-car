@@ -2,6 +2,7 @@
 #include "app_ball_control.h"
 #include "app_chassis_control.h"
 #include "app_command.h"
+#include "app_competition_control.h"
 #include "app_competition_menu.h"
 #include "app_gyro_control.h"
 #include "app_k230_input.h"
@@ -54,13 +55,14 @@ void APP_Scheduler_RunOnce(void)
     APP_CompetitionMenu_UpdateTask();     // 只处理按键和UI状态，不访问OLED
 
     if (APP_CompetitionMenu_ConsumeStartRequest(&s_current_mode)) {
-        /* 后续比赛状态机在这里按s_current_mode启动具体小题。 */
+        APP_CompetitionControl_Start(s_current_mode);
     }
 
     if (APP_CompetitionMenu_ConsumeStopRequest()) {
-        APP_ChassisControl_Stop();
-        APP_BallControl_SetEnable(0U);
+        APP_CompetitionControl_Stop();
     }
+
+    APP_CompetitionControl_Task(now_ms);
 
     APP_Command_Task();                   // 蓝牙显式命令和低频状态回传
     APP_CompetitionMenu_DisplayTask();    // OLED最低优先级执行

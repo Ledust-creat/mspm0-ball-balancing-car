@@ -78,6 +78,18 @@ static void reset_active_outer_loop(void)
 */
 void APP_ChassisControl_Init(void)
 {
+    DVE_Chassis_Init();
+
+#if (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_LINE_FOLLOW)
+    APP_LineFollow_Init();
+#elif (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_GYRO_YAW)
+    /* Gyro模块由系统单独初始化，避免与钢球IMU采样重复初始化。 */
+#elif (APP_CHASSIS_CONTROL_MODE == APP_CHASSIS_CONTROL_MODE_SPEED_TEST)
+    /* 纯速度环测试无额外外环初始化。 */
+#else
+#error "Unsupported APP_CHASSIS_CONTROL_MODE"
+#endif
+
     s_base_speed_cm_s = APP_CHASSIS_CONTROL_DEFAULT_BASE_SPEED_CM_S;
     s_last_steering_correction_cm_s = 0.0f;
     s_is_running = false;

@@ -16,6 +16,8 @@
 #include "app_gyro_control.h"
 #include "app_k230_input.h"
 #include "app_competition_menu.h"
+#include "app_competition_control.h"
+#include "app_task_track_lap.h"
 #include "app_scheduler.h"
 #include "dve_icm20602.h"
 #include "bsp_gyro_spi.h"

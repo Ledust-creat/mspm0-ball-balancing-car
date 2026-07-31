@@ -11,12 +11,12 @@
 #define APP_LINE_FOLLOW_LOST_TIMEOUT_TICKS     \
     (APP_LINE_FOLLOW_LOST_TIMEOUT_MS / APP_LINE_FOLLOW_PERIOD_MS)
 
-#define APP_LINE_FOLLOW_DEFAULT_KP             (3.72f)      /* 循迹外环初始Kp */
+#define APP_LINE_FOLLOW_DEFAULT_KP             (3.38f)      /* 循迹外环初始Kp */
 #define APP_LINE_FOLLOW_DEFAULT_KI             (0.0f)      /* 循迹外环初始Ki */
 #define APP_LINE_FOLLOW_DEFAULT_KD             (60.0f)      /* 循迹外环初始Kd */
 #define APP_LINE_FOLLOW_MAX_CORRECTION_CM_S    (36.0f)     /* 转向修正速度限幅 */
 
-#define APP_LINE_FOLLOW_ERROR_FILTER_ALPHA     (1.0f)      /* 误差低通滤波，新值占比 */
+#define APP_LINE_FOLLOW_ERROR_FILTER_ALPHA     (0.5f)      /* 误差低通滤波，新值占比 */
 #define APP_LINE_FOLLOW_ERROR_DEADBAND         (1.10f)     /* 中心死区，覆盖0附近跳动 */
 #define APP_LINE_FOLLOW_CENTER_I_DECAY         (0.50f)     /* 回到中心后释放积分 */
 #define APP_LINE_FOLLOW_CENTER_I_EPSILON       (0.10f)     /* 小积分清零阈值 */

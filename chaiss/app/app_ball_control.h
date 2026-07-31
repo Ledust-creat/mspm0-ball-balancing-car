@@ -22,7 +22,8 @@ extern "C" {
 #define APP_BALL_SERVO_DIR                  (-1.0f)     /* 舵机方向修正，反向时改为-1 */
 #define APP_BALL_SERVO_POS_PER_DEG          (10.0f)      /* 横梁每变化1deg对应的舵机位置增量 */
 #define APP_BALL_MEASUREMENT_LIMIT_CM       (16.0f)     /* 外部位置输入合理范围，单位cm */
-#define APP_BALL_SPEED_LPF_ALPHA            (0.30f)     /* 球速一阶低通新数据权重，范围0~1 */
+#define APP_BALL_SPEED_WINDOW_FRAME         (10U)       /* 速度估计位置窗口帧数 */
+#define APP_BALL_SPEED_FILTER_ALPHA         (0.25f)     /* 窗口速度一阶低通新数据权重 */
 #define APP_BALL_DEFAULT_KP                 (0.25f)     /* 钢球位置环默认Kp */
 #define APP_BALL_DEFAULT_KI                 (0.01f)     /* 钢球位置环默认Ki */
 #define APP_BALL_DEFAULT_KD                 (0.8f)     /* 钢球位置环默认Kd */
@@ -99,7 +100,10 @@ typedef struct
     float measured_position_cm;             /* 当前视觉位置，单位cm */
     float error_cm;                         /* 位置误差，单位cm */
     float estimated_velocity_cm_s;          /* 估算球速，单位cm/s */
+    float estimated_acceleration_cm_s2;     /* 估算球加速度，单位cm/s^2 */
     float angle_cmd_deg;                    /* 横梁角度命令，单位deg */
+    float velocity_feedback_deg;            /* 移动控球附加速度反馈角，单位deg */
+    float vehicle_accel_feedforward_deg;    /* 车辆加速度前馈角，单位deg */
     float accel_feedforward_deg;            /* IMU加速度前馈角度，单位deg */
     uint16_t servo_command;                 /* 当前舵机位置命令，范围0~1000 */
     uint32_t last_vision_tick_ms;           /* 最近有效视觉帧收帧时刻，单位ms */
@@ -129,6 +133,9 @@ void APP_BallControl_SetVisionPoint(float x_px, float y_px, uint32_t tick_ms);
 void APP_BallControl_SetVisionCalibration(const APP_BallVisionCalibration_t *calibration);
 void APP_BallControl_SetPid(float kp, float ki, float kd);
 void APP_BallControl_GetPid(PID_t *pid);
+void APP_BallControl_SetMotionCompensation(float velocity_gain,
+                                           float acceleration_gain);
+void APP_BallControl_SetMotionEstimator(uint8_t window_frame, float filter_alpha);
 void APP_BallControl_SetServoTestPosition(uint16_t pos);
 void APP_BallControl_SetServoLevelPosition(uint16_t position);
 uint16_t APP_BallControl_GetServoLevelPosition(void);

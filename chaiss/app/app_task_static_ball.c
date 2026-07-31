@@ -12,6 +12,8 @@
 #define APP_STATIC_BALL_PID_KP                    (0.25f)     /* 第三问静态往返专用位置环Kp */
 #define APP_STATIC_BALL_PID_KI                    (0.01f)     /* 第三问静态往返专用位置环Ki */
 #define APP_STATIC_BALL_PID_KD                    (0.8f)      /* 第三问静态往返专用位置环Kd */
+#define APP_STATIC_BALL_SPEED_WINDOW_FRAME         (2U)        /* 第三问保持原相邻帧速度差分 */
+#define APP_STATIC_BALL_SPEED_FILTER_ALPHA         (0.30f)     /* 第三问保持原速度低通系数 */
 
 #define APP_STATIC_BALL_BRAKE_TO_SERVO_OFFSET     (60)        /* 球向舵机侧运动时制动偏移 */
 #define APP_STATIC_BALL_ACCEL_SERVO_OFFSET        (-45)       /* 向舵机侧加速的零点偏移 */
@@ -308,6 +310,9 @@ void APP_TaskStaticBall_Start(void)
     APP_BallControl_SetPid(APP_STATIC_BALL_PID_KP,
                            APP_STATIC_BALL_PID_KI,
                            APP_STATIC_BALL_PID_KD); // 每次启动第三问都恢复本任务已调好的专用PID
+    APP_BallControl_SetMotionCompensation(0.0f, 0.0f); // 第三问静态控球不使用移动速度反馈和车辆前馈
+    APP_BallControl_SetMotionEstimator(APP_STATIC_BALL_SPEED_WINDOW_FRAME,
+                                       APP_STATIC_BALL_SPEED_FILTER_ALPHA); // 保持第三问已调好的速度估计动态
     APP_BallControl_SetServoControlOffset(0); // 每次新任务从现场校准水平零点开始
     APP_BallControl_Reset();
     enter_accel(0U);

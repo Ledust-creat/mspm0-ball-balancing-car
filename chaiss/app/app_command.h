@@ -17,13 +17,11 @@ extern "C" {
 #define APP_CMD_PACKET_LEN                   (8U)
 #define APP_CMD_WAVE_PERIOD_MS               (100U)
 #define APP_CMD_TEXT_PERIOD_MS               (3000U)
-#define APP_CMD_BALL_DEBUG_PERIOD_MS         (200U)      /* 静态钢球状态短日志周期 */
 
 #define APP_CMD_ENABLE_ACK_FRAME             (0U)
 #define APP_CMD_ENABLE_ERR_FRAME             (0U)
 #define APP_CMD_ENABLE_WAVE_FRAME            (0U)
 #define APP_CMD_ENABLE_TEXT_STATUS           (1U)
-#define APP_CMD_ENABLE_BALL_DEBUG             (1U)        /* 1开启静态钢球调试短日志 */
 
 #define APP_CMD_TUNE_TARGET_LINE             (0U)
 #define APP_CMD_TUNE_TARGET_GYRO             (1U)

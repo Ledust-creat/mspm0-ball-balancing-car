@@ -345,6 +345,98 @@ void APP_BallControl_SetEnable(uint8_t enable)
 
 /*
 *********************************************************************************************************
+*   函 数 名: APP_BallControl_SetMode
+*   功能说明: 按任务层要求切换钢球控制模式
+*   形    参: mode - 控球模式
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_BallControl_SetMode(APP_BallControlMode_t mode)
+{
+    switch (mode) {
+        case APP_BALL_MODE_DISABLE:
+            APP_BallControl_SetEnable(0U);
+            break;
+
+        case APP_BALL_MODE_MANUAL_TILT:
+            s_status.enabled = true;
+            s_status.state = APP_BALL_STATE_OPEN_LOOP_TEST;
+            s_status.fault = APP_BALL_FAULT_NONE;
+            reset_control();
+            break;
+
+        case APP_BALL_MODE_POSITION_HOLD:
+            APP_BallControl_StartHold(s_status.target_position_cm);
+            break;
+
+        case APP_BALL_MODE_FAULT:
+        default:
+            s_status.enabled = false;
+            s_status.state = APP_BALL_STATE_FAULT;
+            reset_control();
+            command_center();
+            break;
+    }
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_SetManualTiltDeg
+*   功能说明: 固定横梁角度开环输出，用于第三问加速和反向制动
+*   形    参: angle_deg - 横梁角度，单位deg；move_time_ms - 舵机移动时间，单位ms
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_BallControl_SetManualTiltDeg(float angle_deg, uint16_t move_time_ms)
+{
+    bool saturated = false;
+
+    s_status.enabled = true;
+    s_status.state = APP_BALL_STATE_OPEN_LOOP_TEST;
+    s_status.fault = APP_BALL_FAULT_NONE;
+    s_status.angle_cmd_deg = limit_float(angle_deg,
+                                         -APP_BALL_ANGLE_LIMIT_DEG,
+                                         APP_BALL_ANGLE_LIMIT_DEG);
+    s_status.servo_command = angle_to_servo_position(s_status.angle_cmd_deg, &saturated);
+    s_status.saturated = saturated;
+    (void)DVE_HTS25L_SetPosition(s_status.servo_command, move_time_ms);
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_StartHold
+*   功能说明: 启动钢球位置保持闭环
+*   形    参: target_cm - 目标位置，单位cm
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_BallControl_StartHold(float target_cm)
+{
+    reset_control();
+    s_status.enabled = true;
+    s_status.fault = APP_BALL_FAULT_NONE;
+    s_enable_tick_ms = Get_Tick();
+    s_last_control_tick_ms = s_enable_tick_ms;
+    APP_BallControl_SetTargetCm(target_cm);
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_Reset
+*   功能说明: 清除钢球PID、速度估计和历史位置，不改变当前目标位置
+*   形    参: 无
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_BallControl_Reset(void)
+{
+    reset_control();
+    s_previous_measurement_tick_ms = Get_Tick();
+    s_previous_measurement_cm = s_status.measured_position_cm;
+}
+
+/*
+*********************************************************************************************************
 *   函 数 名: APP_BallControl_SetTargetCm
 *   功能说明: 设置钢球目标位置
 *   形    参: target_cm - 目标位置，单位cm

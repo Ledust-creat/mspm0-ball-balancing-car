@@ -18,6 +18,7 @@
 #include "app_competition_menu.h"
 #include "app_competition_control.h"
 #include "app_task_track_lap.h"
+#include "app_task_static_ball.h"
 #include "app_scheduler.h"
 #include "dve_icm20602.h"
 #include "bsp_gyro_spi.h"

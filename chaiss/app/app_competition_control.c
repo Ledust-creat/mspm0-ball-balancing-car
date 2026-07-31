@@ -1,6 +1,7 @@
 #include "app_competition_control.h"
 #include "app_ball_control.h"
 #include "app_chassis_control.h"
+#include "app_task_static_ball.h"
 #include "app_task_track_lap.h"
 
 /*
@@ -24,6 +25,7 @@ void APP_CompetitionControl_Init(void)
     s_current_mode = APP_COMP_MODE_TRACK_LAP;
     s_running = false;
     APP_TaskTrackLap_Init();
+    APP_TaskStaticBall_Init();
 }
 
 /*
@@ -43,6 +45,10 @@ void APP_CompetitionControl_Start(APP_CompetitionMode_t mode)
     switch (mode) {
         case APP_COMP_MODE_TRACK_LAP:
             APP_TaskTrackLap_Start();
+            break;
+
+        case APP_COMP_MODE_STATIC_RECIPROCATE:
+            APP_TaskStaticBall_Start();
             break;
 
         default:
@@ -75,6 +81,14 @@ void APP_CompetitionControl_Task(uint32_t now_ms)
             }
             break;
 
+        case APP_COMP_MODE_STATIC_RECIPROCATE:
+            APP_TaskStaticBall_Task(now_ms);
+            if (APP_TaskStaticBall_IsFinished()) {
+                s_running = false;
+                APP_CompetitionMenu_NotifyFinished();
+            }
+            break;
+
         default:
             break;
     }
@@ -91,6 +105,7 @@ void APP_CompetitionControl_Task(uint32_t now_ms)
 void APP_CompetitionControl_Stop(void)
 {
     APP_TaskTrackLap_Stop();
+    APP_TaskStaticBall_Stop();
     APP_ChassisControl_Stop();
     APP_BallControl_SetEnable(0U);
     s_running = false;

@@ -26,6 +26,7 @@
 
 #define DVE_CHASSIS_SPEED_PID_MAX_IOUT      (1000.0f)   /* 速度环积分限幅 */
 #define DVE_CHASSIS_SPEED_PID_MAX_OUT       ((float)BSP_CHASSIS_MOTOR_PWM_MAX)
+#define DVE_CHASSIS_SPEED_FILTER_ALPHA      (1.0f)      /* 实际速度低通滤波，新值占比 */
 
 #define DVE_CHASSIS_ENCODER_MAP_NORMAL      (0U)        /* EncoderA=左轮，EncoderB=右轮 */
 #define DVE_CHASSIS_ENCODER_MAP_SWAPPED     (1U)        /* EncoderA=右轮，EncoderB=左轮 */
@@ -357,18 +358,25 @@ void DVE_Chassis_SetTraceSpeedCmps(float base_cm_s, float turn_cm_s)
 */
 void DVE_Chassis_Update20ms(void)
 {
+    float left_raw_cm_s;
+    float right_raw_cm_s;
+
     if (!s_chassis_inited) {
         return;
     }
 
     Encoder_CalculateSpeed(&s_encoder);
 #if (DVE_CHASSIS_ENCODER_MAP == DVE_CHASSIS_ENCODER_MAP_SWAPPED)
-    s_left_actual_cm_s = s_encoder.motorB.speed_cm_s;
-    s_right_actual_cm_s = s_encoder.motorA.speed_cm_s;
+    left_raw_cm_s = s_encoder.motorB.speed_cm_s;
+    right_raw_cm_s = s_encoder.motorA.speed_cm_s;
 #else
-    s_left_actual_cm_s = s_encoder.motorA.speed_cm_s;
-    s_right_actual_cm_s = s_encoder.motorB.speed_cm_s;
+    left_raw_cm_s = s_encoder.motorA.speed_cm_s;
+    right_raw_cm_s = s_encoder.motorB.speed_cm_s;
 #endif
+    s_left_actual_cm_s += (left_raw_cm_s - s_left_actual_cm_s) *
+                          DVE_CHASSIS_SPEED_FILTER_ALPHA;
+    s_right_actual_cm_s += (right_raw_cm_s - s_right_actual_cm_s) *
+                           DVE_CHASSIS_SPEED_FILTER_ALPHA;
 
     if (!s_chassis_enable) {
         BSP_ChassisMotor_StopAll();

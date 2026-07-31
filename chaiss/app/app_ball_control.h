@@ -49,6 +49,14 @@ typedef enum
 
 typedef enum
 {
+    APP_BALL_MODE_DISABLE = 0,              /* 失能控球，舵机回中位 */
+    APP_BALL_MODE_MANUAL_TILT,              /* 固定角度开环倾斜，不执行位置PID */
+    APP_BALL_MODE_POSITION_HOLD,            /* 位置闭环保持指定目标 */
+    APP_BALL_MODE_FAULT                     /* 故障保护模式 */
+} APP_BallControlMode_t;
+
+typedef enum
+{
     APP_BALL_FAULT_NONE = 0,                /* 无故障 */
     APP_BALL_FAULT_VISION_TIMEOUT           /* K230视觉数据超时 */
 } APP_BallControlFault_t;
@@ -102,6 +110,10 @@ void APP_BallControl_Task(void);
 void APP_BallControl_UpdateFromVision(const APP_K230BallFrame_t *frame);
 void APP_BallControl_SafetyTask(void);
 void APP_BallControl_SetEnable(uint8_t enable);
+void APP_BallControl_SetMode(APP_BallControlMode_t mode);
+void APP_BallControl_SetManualTiltDeg(float angle_deg, uint16_t move_time_ms);
+void APP_BallControl_StartHold(float target_cm);
+void APP_BallControl_Reset(void);
 void APP_BallControl_SetTargetCm(float target_cm);
 void APP_BallControl_SetMeasuredPositionCm(float x_cm, uint32_t tick_ms);
 void APP_BallControl_SetVisionPoint(float x_px, float y_px, uint32_t tick_ms);

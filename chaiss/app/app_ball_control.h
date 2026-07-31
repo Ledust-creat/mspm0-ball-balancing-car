@@ -15,11 +15,11 @@ extern "C" {
 *   宏定义
 *********************************************************************************************************
 */
-#define APP_BALL_VISION_TIMEOUT_MS          (500U)      /* K230无有效新帧故障超时，单位ms */
+#define APP_BALL_VISION_TIMEOUT_MS          (1000U)      /* K230无有效新帧故障超时，单位ms */
 #define APP_BALL_TARGET_LIMIT_CM            (10.0f)     /* 目标位置限幅，单位cm */
 #define APP_BALL_ANGLE_LIMIT_DEG            (6.0f)      /* 横梁角度输出总限幅，单位deg */
 #define APP_BALL_SERVO_DIR                  (1.0f)      /* 舵机方向修正，反向时改为-1 */
-#define APP_BALL_SERVO_POS_PER_DEG          (12.0f)     /* 横梁每变化1deg对应的舵机位置增量 */
+#define APP_BALL_SERVO_POS_PER_DEG          (2.0f)     /* 横梁每变化1deg对应的舵机位置增量 */
 #define APP_BALL_MEASUREMENT_LIMIT_CM       (50.0f)     /* 外部位置输入合理范围，单位cm */
 #define APP_BALL_SPEED_LPF_ALPHA            (0.30f)     /* 球速一阶低通新数据权重，范围0~1 */
 #define APP_BALL_DEFAULT_KP                 (0.80f)     /* 钢球位置环默认Kp */
@@ -31,7 +31,7 @@ extern "C" {
 #define APP_BALL_ACCEL_X_FF_DEG_PER_G       (0.0f)      /* 车体前向加速度前馈系数，单位deg/g */
 #define APP_BALL_ACCEL_Y_FF_DEG_PER_G       (20.0f)     /* 车体横向加速度前馈系数，单位deg/g */
 #define APP_BALL_ACCEL_FF_LIMIT_DEG         (3.0f)      /* 加速度前馈单独限幅，单位deg */
-#define APP_BALL_ACCEL_FF_SIGN              (1.0f)      /* 前馈方向修正，反向时改为-1 */
+#define APP_BALL_ACCEL_FF_SIGN              (-1.0f)      /* 前馈方向修正，反向时改为-1 */
 
 /*
 *********************************************************************************************************

@@ -13,7 +13,7 @@
 #define APP_TRACK_LAP_LINE_KI                  (0.0f)     /* 第二问循迹外环Ki */
 #define APP_TRACK_LAP_LINE_KD                  (60.0f)    /* 第二问循迹外环Kd */
 #define APP_TRACK_LAP_FINISH_IGNORE_MS         (5000U)    /* 发车后忽略起点黑线时间，单位ms */
-#define APP_TRACK_LAP_FINISH_BLACK_COUNT_MIN   (4U)       /* 终点停车最少黑线通道数，单位路 */
+#define APP_TRACK_LAP_FINISH_BLACK_COUNT_MIN   (3U)       /* 终点停车最少黑线通道数，单位路 */
 #define APP_TRACK_LAP_FINISH_CONFIRM_MS        (60U)      /* 终点黑线连续确认时间，单位ms */
 
 /*

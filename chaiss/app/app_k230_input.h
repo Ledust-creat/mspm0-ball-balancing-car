@@ -17,7 +17,7 @@ extern "C" {
 #define APP_K230_FRAME_TAIL                 (0x5AU)     /* K230数据帧尾 */
 #define APP_K230_PACKET_LEN                 (8U)        /* K230固定帧长度，单位byte */
 #define APP_K230_CMD_BALL_X_CM              (0x20U)     /* 钢球X位置命令，DATA=float，单位cm */
-#define APP_K230_POSITION_LIMIT_CM          (13.0f)     /* K230位置输入合理范围，单位cm */
+#define APP_K230_POSITION_LIMIT_CM          (14.0f)     /* K230位置输入合理范围，单位cm */
 
 /*
 *********************************************************************************************************

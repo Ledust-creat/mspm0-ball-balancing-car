@@ -253,7 +253,7 @@ void APP_BallControl_UpdateFromVision(const APP_K230BallFrame_t *frame)
 
     dt_s = (float)elapsed_ms * 0.001f;
     s_status.error_cm = s_status.target_position_cm - s_status.measured_position_cm;
-
+    
     s_position_pid.error[2] = s_position_pid.error[1];
     s_position_pid.error[1] = s_position_pid.error[0];
     s_position_pid.error[0] = s_status.error_cm;

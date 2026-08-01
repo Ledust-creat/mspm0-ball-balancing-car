@@ -8,17 +8,23 @@
 *   宏定义
 *********************************************************************************************************
 */
-#define APP_MOBILE_PRE_HOLD_MS                 (500U)     /* 发车前控球稳定时间 */
+#define APP_MOBILE_PRE_HOLD_MS                 (400U)     /* 发车前控球稳定时间 */
 #define APP_MOBILE_FINAL_HOLD_MS               (500U)     /* 停车后继续控球时间 */
 #define APP_MOBILE_VISION_WAIT_TIMEOUT_MS      (1000U)    /* 等待首帧视觉超时 */
-#define APP_MOBILE_AB_CURVE_IGNORE_MS          (1000U)    /* AB模式发车后弯道检测屏蔽时间 */
+#define APP_MOBILE_AB_CURVE_IGNORE_MS          (4000U)    /* AB模式发车后弯道检测屏蔽时间 */
 #define APP_MOBILE_LAP_FINISH_IGNORE_MS        (5000U)    /* 整圈模式起点黑线屏蔽时间 */
 #define APP_MOBILE_FINISH_BLACK_COUNT_MIN      (4U)       /* 终点黑线最少触发通道 */
 #define APP_MOBILE_FINISH_CONFIRM_MS           (60U)      /* 结束条件连续确认时间 */
 #define APP_MOBILE_AB_CURVE_ERROR_MIN          (3.0f)     /* AB模式进入首个弯道误差阈值 */
 #define APP_MOBILE_RAMP_READY_RATIO            (0.80f)    /* 规划速度达到目标比例后进入运行 */
-#define APP_MOBILE_CRUISE_SPEED_CENTER_CM_S    (20.0f)    /* 中心控球巡航速度 */
+#define APP_MOBILE_CRUISE_SPEED_CENTER_CM_S    (22.0f)    /* 中心控球巡航速度 */
 #define APP_MOBILE_CRUISE_SPEED_TARGET_CM_S    (15.0f)    /* 指定位置控球巡航速度 */
+
+#define APP_AB_BALL_PID_KP                     (0.31f)    /* 第四问AB控球位置环Kp */
+#define APP_AB_BALL_PID_KI                     (0.02f)    /* 第四问AB控球位置环Ki */
+#define APP_AB_BALL_PID_KD                     (0.20f)    /* 第四问位置环速度阻尼Kd */
+#define APP_AB_BALL_SPEED_K                    (0.5f)    /* 第四问移动控球附加速度反馈Kv */
+#define APP_AB_ACCEL_FF_K                      (0.24f)   /* 第四问计划加速度前馈Ka，单位deg/(cm/s^2) */
 
 /*
 *********************************************************************************************************
@@ -84,7 +90,7 @@ static void enter_state(APP_MobileBallState_t state, uint32_t now_ms)
 static void enter_fault(void)
 {
     APP_ChassisControl_Stop();                         // 故障使用硬停车，不等待速度斜坡
-    APP_ChassisControl_SetBallPriorityMode(false);    // 关闭后三问专用速度限制
+    APP_ChassisControl_SetBallPriorityMode(false);   // 故障退出移动控球速度规划模式
     APP_BallControl_SetMode(APP_BALL_MODE_FAULT);     // 横梁进入钢球安全故障状态
     s_state = APP_MOBILE_BALL_FAULT;
 }
@@ -131,6 +137,9 @@ void APP_TaskMobileBall_Init(void)
     s_state_start_ms = 0U;
     s_finish_detect_start_ms = 0U;
     s_finish_detecting = false;
+    // Kv/Ka仅在上电初始化一次，后续任务启动不得覆盖串口调参结果
+    APP_BallControl_SetMotionCompensation(APP_AB_BALL_SPEED_K,
+                                          APP_AB_ACCEL_FF_K);
 }
 
 /*
@@ -148,10 +157,16 @@ void APP_TaskMobileBall_Start(APP_MobileMode_t mode, float target_position_cm)
     s_cruise_speed_cm_s = (mode == APP_MOBILE_MODE_LAP_TARGET) ? // 偏置控球降低巡航速度
                           APP_MOBILE_CRUISE_SPEED_TARGET_CM_S :
                           APP_MOBILE_CRUISE_SPEED_CENTER_CM_S;
+    APP_LineFollow_SetErrorFilterAlpha(1.0f); // 移动控球使用中等滤波，兼顾响应和稳定
     s_start_tick_ms = 0U;
+    APP_BallControl_SetPid(APP_AB_BALL_PID_KP,
+                           APP_AB_BALL_PID_KI,
+                           APP_AB_BALL_PID_KD); // 移动任务启动时加载独立位置环参数
+    APP_BallControl_SetMotionEstimator(APP_BALL_SPEED_WINDOW_FRAME,
+                                       APP_BALL_SPEED_FILTER_ALPHA); // 第四问使用10帧窗口速度估计
     APP_ChassisControl_Stop();                         // 启动状态机前保证底盘静止
-    APP_ChassisControl_SetBallPriorityMode(true);     // 仅后三问启用速度斜坡和转向限制
-    APP_ChassisControl_SetTargetBaseSpeed(0.0f);      // 收到有效视觉前禁止发车
+    APP_ChassisControl_SetBallPriorityMode(true);     // 启用循迹、速度斜坡和计划加速度计算
+    APP_ChassisControl_SetTargetBaseSpeed(0.0f);      // 收到有效视觉前保持零速
     APP_BallControl_Reset();                          // 清除上一次任务的PID动态量
     enter_state(APP_MOBILE_BALL_WAIT_VISION, 0U);     // 首次Task调用时补写真实进入时间
 }
@@ -210,13 +225,14 @@ void APP_TaskMobileBall_Task(uint32_t now_ms)
         case APP_MOBILE_BALL_PRE_HOLD:
             if ((uint32_t)(now_ms - s_state_start_ms) >= APP_MOBILE_PRE_HOLD_MS) {
                 APP_ChassisControl_SetTargetBaseSpeed(s_cruise_speed_cm_s); // 设置斜坡最终速度
-                APP_ChassisControl_Start();                                // 从0开始平滑发车
-                s_start_tick_ms = now_ms;                                  // 结束检测从实际发车计时
+                APP_ChassisControl_Start();                                // 从零速开始平滑发车
+                s_start_tick_ms = now_ms;
                 enter_state(APP_MOBILE_BALL_RAMP_UP, now_ms);
             }
             break;
 
         case APP_MOBILE_BALL_RAMP_UP:
+            APP_ChassisControl_GetState(&chassis);
             if (chassis.planned_base_speed_cm_s >=
                 (s_cruise_speed_cm_s * APP_MOBILE_RAMP_READY_RATIO)) {
                 enter_state(APP_MOBILE_BALL_RUNNING, now_ms); // 达到80%巡航速度后开放终点检测
@@ -240,14 +256,14 @@ void APP_TaskMobileBall_Task(uint32_t now_ms)
             }
 
             if (update_finish_detection(finish_condition, now_ms)) {
-                APP_ChassisControl_RequestSoftStop(); // 正常完成必须减速停车，避免钢球受冲击
+                APP_ChassisControl_RequestSoftStop(); // 沿减速斜坡停车，降低钢球冲击
                 enter_state(APP_MOBILE_BALL_RAMP_DOWN, now_ms);
             }
             break;
 
         case APP_MOBILE_BALL_RAMP_DOWN:
             if (APP_ChassisControl_IsSoftStopped()) {
-                enter_state(APP_MOBILE_BALL_FINAL_HOLD, now_ms); // 停车后继续闭环稳定钢球
+                enter_state(APP_MOBILE_BALL_FINAL_HOLD, now_ms);
             }
             break;
 
@@ -274,7 +290,7 @@ void APP_TaskMobileBall_Task(uint32_t now_ms)
 void APP_TaskMobileBall_Stop(void)
 {
     APP_ChassisControl_Stop();                         // 用户停止直接执行安全硬停车
-    APP_ChassisControl_SetBallPriorityMode(false);    // 恢复普通底盘控制语义
+    APP_ChassisControl_SetBallPriorityMode(false);   // 退出任务时恢复普通底盘控制语义
     APP_BallControl_SetEnable(0U);                    // 人工停止时关闭控球并回安全中位
     s_state = APP_MOBILE_BALL_IDLE;
     s_finish_detecting = false;

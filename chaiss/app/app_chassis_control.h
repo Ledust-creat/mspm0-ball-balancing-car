@@ -28,15 +28,17 @@ extern "C" {
 */
 typedef struct
 {
-    float base_speed_cm_s;                  /* 基础速度 */
-    float target_base_speed_cm_s;           /* 移动控球目标基础速度 */
+    float base_speed_cm_s;                  /* 普通模式基础速度 */
+    float target_base_speed_cm_s;           /* 移动控球斜坡目标速度 */
     float planned_base_speed_cm_s;          /* 斜坡规划后的基础速度 */
     float planned_accel_cm_s2;              /* 最近一次规划加速度 */
-    float steering_correction_cm_s;         /* 转向修正速度 */
+    float mobile_accel_step_cm_s;           /* 每20ms加速步长 */
+    float mobile_decel_step_cm_s;           /* 每20ms减速步长 */
+    float steering_correction_cm_s;         /* 当前转向修正速度 */
     uint8_t control_mode;                   /* 当前外环模式 */
     bool is_running;                        /* 底盘运行状态 */
-    bool ball_priority_mode;                /* 移动控球专用限制是否启用 */
-    bool soft_stopped;                      /* 软停车是否完成 */
+    bool ball_priority_mode;                /* 移动控球速度规划使能 */
+    bool soft_stopped;                      /* 斜坡停车完成标志 */
 } APP_ChassisControlState_t;
 
 /*
@@ -51,6 +53,8 @@ void APP_ChassisControl_Stop(void);
 void APP_ChassisControl_SetBaseSpeedCmps(float base_speed_cm_s);
 void APP_ChassisControl_SetTargetBaseSpeed(float speed_cm_s);
 void APP_ChassisControl_SetBallPriorityMode(bool enable);
+void APP_ChassisControl_SetMobileRampStep(float accel_step_cm_s,
+                                          float decel_step_cm_s);
 void APP_ChassisControl_RequestSoftStop(void);
 bool APP_ChassisControl_IsSoftStopped(void);
 float APP_ChassisControl_GetPlannedAccelCmps2(void);

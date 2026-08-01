@@ -241,15 +241,20 @@ void Command_SendStatus(void)
 {
     DVE_ChassisState_t chassis;
     APP_ChassisControlState_t control;
+    APP_BallControlStatus_t ball;
     PID_t pid;
 
     DVE_Chassis_GetState(&chassis);
     APP_ChassisControl_GetState(&control);
+    APP_BallControl_GetStatus(&ball);
     get_tune_pid(&pid);
 
     Command_PackAndSend(CMD_STATUS_ERROR, get_tune_error());
     Command_PackAndSend(CMD_STATUS_TURN, get_tune_output());
-    Command_PackAndSend(CMD_STATUS_BASE, control.base_speed_cm_s);
+    Command_PackAndSend(CMD_STATUS_BASE,
+                        control.ball_priority_mode ?
+                        control.planned_base_speed_cm_s :
+                        control.base_speed_cm_s);
     Command_PackAndSend(CMD_STATUS_KP, pid.Kp);
     Command_PackAndSend(CMD_STATUS_KD, pid.Kd);
     Command_PackAndSend(CMD_STATUS_RUN, control.is_running ? 1.0f : 0.0f);
@@ -257,6 +262,12 @@ void Command_SendStatus(void)
     Command_PackAndSend(CMD_STATUS_RIGHT_SPEED, chassis.right_actual_cm_s);
     Command_PackAndSend(CMD_STATUS_LEFT_PWM, chassis.left_pwm_out);
     Command_PackAndSend(CMD_STATUS_RIGHT_PWM, chassis.right_pwm_out);
+    Command_PackAndSend(CMD_STATUS_BALL_KV, ball.motion_velocity_gain);
+    Command_PackAndSend(CMD_STATUS_BALL_KA, ball.motion_acceleration_gain);
+    Command_PackAndSend(CMD_STATUS_MOBILE_ACCEL_STEP,
+                        control.mobile_accel_step_cm_s);
+    Command_PackAndSend(CMD_STATUS_MOBILE_DECEL_STEP,
+                        control.mobile_decel_step_cm_s);
 }
 
 /*
@@ -270,6 +281,7 @@ void Command_SendStatus(void)
 void Command_Parse(uint8_t *buf, uint8_t len)
 {
     DVE_ChassisState_t chassis;
+    APP_ChassisControlState_t control;
     PID_t pid;
     uint8_t cmd;
     float data;
@@ -296,7 +308,12 @@ void Command_Parse(uint8_t *buf, uint8_t len)
             APP_ChassisControl_Stop();
             break;
         case CMD_SET_SPEED:
+            if (!value_in_range(data, 0.0f, 50.0f)) {
+                send_error(APP_CMD_ERR_PARAM);
+                return;
+            }
             APP_ChassisControl_SetBaseSpeedCmps(data);
+            APP_ChassisControl_SetTargetBaseSpeed(data); // 移动控球运行时同步修改斜坡终点速度
             break;
         case CMD_SET_KP:
         case CMD_SET_KI:
@@ -351,6 +368,41 @@ void Command_Parse(uint8_t *buf, uint8_t len)
             break;
         case CMD_BALL_STOP:
             APP_BallControl_SetEnable(0U);
+            break;
+        case CMD_SET_BALL_KV:
+        case CMD_SET_BALL_KA:
+        {
+            APP_BallControlStatus_t ball;
+
+            if (!value_in_range(data, -10.0f, 10.0f)) {
+                send_error(APP_CMD_ERR_PARAM);
+                return;
+            }
+
+            APP_BallControl_GetStatus(&ball);
+            if (cmd == CMD_SET_BALL_KV) {
+                APP_BallControl_SetMotionCompensation(data,
+                                                      ball.motion_acceleration_gain);
+            } else {
+                APP_BallControl_SetMotionCompensation(ball.motion_velocity_gain,
+                                                      data);
+            }
+            break;
+        }
+        case CMD_SET_MOBILE_ACCEL_STEP:
+        case CMD_SET_MOBILE_DECEL_STEP:
+            if (!value_in_range(data, 0.01f, 2.0f)) {
+                send_error(APP_CMD_ERR_PARAM);
+                return;
+            }
+            APP_ChassisControl_GetState(&control);
+            if (cmd == CMD_SET_MOBILE_ACCEL_STEP) {
+                APP_ChassisControl_SetMobileRampStep(
+                    data, control.mobile_decel_step_cm_s);
+            } else {
+                APP_ChassisControl_SetMobileRampStep(
+                    control.mobile_accel_step_cm_s, data);
+            }
             break;
         case CMD_SET_BALL_TARGET:
             if (!value_in_range(data,
@@ -495,6 +547,10 @@ static void send_text_status(void)
     p = append_str(p, APP_CMD_TUNE_TARGET_NAME);
     p = append_str(p, ",base=");
     p = append_f2(p, control.base_speed_cm_s);
+    p = append_str(p, ",target=");
+    p = append_f2(p, control.target_base_speed_cm_s);
+    p = append_str(p, ",planv=");
+    p = append_f2(p, control.planned_base_speed_cm_s);
     p = append_str(p, ",kp=");
     p = append_f2(p, pid.Kp);
     p = append_str(p, ",ki=");
@@ -561,6 +617,16 @@ static void send_text_status(void)
     p = append_f2(p, pid.Ki);
     p = append_str(p, "/");
     p = append_f2(p, pid.Kd);
+    p = append_str(p, ",kv=");
+    p = append_f2(p, ball.motion_velocity_gain);
+    p = append_str(p, ",ka=");
+    p = append_f2(p, ball.motion_acceleration_gain);
+    p = append_str(p, ",plan=");
+    p = append_f2(p, control.planned_accel_cm_s2);
+    p = append_str(p, ",up=");
+    p = append_f2(p, control.mobile_accel_step_cm_s);
+    p = append_str(p, ",down=");
+    p = append_f2(p, control.mobile_decel_step_cm_s);
     p = append_str(p, ",ang=");
     p = append_f2(p, ball.angle_cmd_deg);
     p = append_str(p, ",pos=");

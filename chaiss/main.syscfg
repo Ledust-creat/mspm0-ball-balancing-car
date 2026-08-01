@@ -135,10 +135,11 @@ GPIO6.associatedPins[1].internalResistor = "PULL_UP";
 GPIO6.associatedPins[1].$name            = "E2B";
 GPIO6.associatedPins[1].pin.$assign      = "PB23";
 
-GPIO7.$name                          = "ICM20602";
-GPIO7.associatedPins[0].$name        = "PIN_1";
-GPIO7.associatedPins[0].initialValue = "SET";
-GPIO7.associatedPins[0].pin.$assign  = "PB6";
+GPIO7.$name                              = "ICM20602";
+GPIO7.associatedPins[0].$name            = "PIN_1";
+GPIO7.associatedPins[0].initialValue     = "SET";
+GPIO7.associatedPins[0].internalResistor = "PULL_UP";
+GPIO7.associatedPins[0].pin.$assign      = "PB6";
 
 GPIO8.$name                              = "KEY";
 GPIO8.associatedPins.create(4);
@@ -190,6 +191,7 @@ PWM1.ccp1PinConfig.passedPeripheralType = scripting.forceWrite("Digital");
 SPI1.$name                              = "SPI_ICM20602";
 SPI1.frameFormat                        = "MOTO3";
 SPI1.polarity                           = "1";
+SPI1.phase                              = "1";
 SPI1.targetBitRate                      = 1000000;
 SPI1.sclkPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric4";
 SPI1.sclkPinConfig.direction            = scripting.forceWrite("OUTPUT");

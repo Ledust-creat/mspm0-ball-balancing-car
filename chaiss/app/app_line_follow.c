@@ -25,9 +25,9 @@
 #define APP_LINE_FOLLOW_CURVE_GAIN             (1.18f)     /* 大误差附加转向增益 */
 
 #define APP_LINE_FOLLOW_NORMAL_SPEED_SCALE     (1.00f)     /* 正常速度比例 */
-#define APP_LINE_FOLLOW_INNER2_SPEED_SCALE     (0.98f)     /* 次次外侧传感器触发速度比例 */
-#define APP_LINE_FOLLOW_INNER_SPEED_SCALE      (0.95f)     /* 次外侧传感器触发速度比例 */
-#define APP_LINE_FOLLOW_OUTER_SPEED_SCALE      (0.90f)     /* 最外侧传感器触发速度比例 */
+#define APP_LINE_FOLLOW_INNER2_SPEED_SCALE     (0.95f)     /* 次次外侧传感器触发速度比例 */
+#define APP_LINE_FOLLOW_INNER_SPEED_SCALE      (0.90f)     /* 次外侧传感器触发速度比例 */
+#define APP_LINE_FOLLOW_OUTER_SPEED_SCALE      (0.85f)     /* 最外侧传感器触发速度比例 */
 #define APP_LINE_FOLLOW_SEARCH_SPEED_SCALE     (0.60f)     /* 丢线找线速度比例 */
 #define APP_LINE_FOLLOW_MIN_SEARCH_CORRECTION  (1.0f)      /* 有效转向记忆阈值 */
 
@@ -37,6 +37,7 @@
 *********************************************************************************************************
 */
 static PID_t s_line_pid;                                      /* 循迹外环PID */
+static float s_error_filter_alpha = APP_LINE_FOLLOW_ERROR_FILTER_ALPHA; /* 当前任务误差滤波系数 */
 static float s_line_error = 0.0f;                             /* 最近一次循迹误差 */
 static float s_steering_correction_cm_s = 0.0f;               /* 最近一次转向修正速度 */
 static float s_filtered_line_error = 0.0f;                    /* 滤波后的循迹误差 */
@@ -283,6 +284,20 @@ void APP_LineFollow_SetPid(float kp, float ki, float kd)
 
 /*
 *********************************************************************************************************
+*   函 数 名: APP_LineFollow_SetErrorFilterAlpha
+*   功能说明: 设置当前任务的循迹误差低通滤波系数
+*   形    参: alpha - 新误差占比，范围0.0~1.0
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_LineFollow_SetErrorFilterAlpha(float alpha)
+{
+    s_error_filter_alpha = limit_float(alpha, 0.0f, 1.0f);
+    s_filtered_line_error = 0.0f; // 切换任务参数时清除上一任务的滤波历史
+}
+
+/*
+*********************************************************************************************************
 *   函 数 名: APP_LineFollow_Update
 *   功能说明: 更新循迹外环，输出转向修正、弯道速度比例和找线状态
 *   形    参: output - 循迹输出结构体
@@ -310,7 +325,7 @@ void APP_LineFollow_Update(APP_LineFollowOutput_t *output)
      */
     raw_line_error = sensor.error_f * APP_LINE_FOLLOW_ERROR_SIGN;
     s_filtered_line_error += (raw_line_error - s_filtered_line_error) *
-                             APP_LINE_FOLLOW_ERROR_FILTER_ALPHA;
+                             s_error_filter_alpha;
     s_line_error = s_filtered_line_error;
     s_black_count = sensor.black_count;
     s_is_lost = sensor.is_lost ? true : false;

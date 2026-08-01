@@ -21,7 +21,7 @@ int main(void)
     APP_CompetitionMenu_Init();
     APP_CompetitionControl_Init();
     APP_Scheduler_Init();
-
+                      // 立即启动纯速度环输出
     while (1) {
         APP_Scheduler_RunOnce();
     }

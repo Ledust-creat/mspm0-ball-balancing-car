@@ -20,7 +20,14 @@ static uint32_t s_last_control_tick_ms;                   /* 上一次新视觉�
 static uint32_t s_last_safety_ms;                         /* 最近一次安全检查时刻，单位ms */
 static uint32_t s_enable_tick_ms;                         /* 闭环使能时刻，单位ms */
 static uint32_t s_previous_measurement_tick_ms;           /* 上一次测量时刻，单位ms */
-static float s_previous_measurement_cm;                   /* 上一次测量位置，单位cm */
+static float s_position_window[APP_BALL_SPEED_WINDOW_FRAME]; /* 速度窗口位置缓存 */
+static uint32_t s_tick_window[APP_BALL_SPEED_WINDOW_FRAME];  /* 速度窗口时间缓存 */
+static uint8_t s_window_write_index;                       /* 下一帧窗口写入位置 */
+static uint8_t s_window_count;                             /* 当前有效窗口帧数 */
+static uint8_t s_speed_window_frame;                       /* 当前任务使用的速度窗口帧数 */
+static float s_speed_filter_alpha;                         /* 当前任务使用的速度低通系数 */
+static float s_motion_velocity_gain;                       /* 移动控球附加速度反馈Kv */
+static float s_motion_acceleration_gain;                   /* 车辆加速度前馈Ka */
 
 /*
 *********************************************************************************************************
@@ -64,13 +71,24 @@ static float limit_float(float value, float min, float max)
 */
 static void reset_control(void)
 {
+    uint8_t i;
+
     PID_Reset(&s_position_pid);
     s_status.error_cm = 0.0f;
     s_status.estimated_velocity_cm_s = 0.0f;
+    s_status.estimated_acceleration_cm_s2 = 0.0f;
     s_status.angle_cmd_deg = 0.0f;
+    s_status.velocity_feedback_deg = 0.0f;
+    s_status.vehicle_accel_feedforward_deg = 0.0f;
     s_status.accel_feedforward_deg = 0.0f;
     s_status.imu_accel_valid = false;
     s_status.saturated = false;
+    s_window_write_index = 0U;
+    s_window_count = 0U;
+    for (i = 0U; i < APP_BALL_SPEED_WINDOW_FRAME; i++) {
+        s_position_window[i] = 0.0f;
+        s_tick_window[i] = 0U;
+    }
 }
 
 /*
@@ -99,16 +117,12 @@ static void command_center(void)
 static float get_feedforward_deg(uint32_t frame_tick_ms)
 {
 #if (APP_BALL_ACCEL_FF_ENABLE != 0U)
-    float a_plan_g = 0.0f;
     float a_forward_g;
     float a_lateral_g = 0.0f;
     float a_tube_g;
     float feedforward;
 
-#if (APP_BALL_PLAN_ACCEL_FF_ENABLE != 0U)
-    a_plan_g = APP_ChassisControl_GetPlannedAccelCmps2() / 980.665f; // cm/s^2换算为g
-#endif
-    a_forward_g = a_plan_g;
+    a_forward_g = 0.0f;
 
 #if (APP_BALL_IMU_ACCEL_FF_ENABLE != 0U)
     {
@@ -116,10 +130,19 @@ static float get_feedforward_deg(uint32_t frame_tick_ms)
 
         if (APP_GyroControl_GetLatestAccel(&imu_data) &&
             ((uint32_t)(frame_tick_ms - imu_data.update_tick_ms) <= APP_IMU_DATA_TIMEOUT_MS)) {
-            // 规划加速度作为主体，IMU只修正模型与实车之间的残差
-            a_forward_g = a_plan_g + APP_BALL_ACCEL_RESIDUAL_GAIN *
-                          (imu_data.accel_forward_g - a_plan_g);
-            a_lateral_g = imu_data.accel_lateral_g;
+            // 删除计划斜坡后，直接使用IMU实测加速度进行前馈补偿
+            a_forward_g = APP_BALL_ACCEL_RESIDUAL_GAIN *
+                          imu_data.accel_forward_g;
+            a_lateral_g = APP_BALL_ACCEL_RESIDUAL_GAIN *
+                          imu_data.accel_lateral_g;
+            if ((a_forward_g < (APP_BALL_IMU_ACCEL_DEADBAND_G * APP_BALL_ACCEL_RESIDUAL_GAIN)) &&
+                (a_forward_g > -(APP_BALL_IMU_ACCEL_DEADBAND_G * APP_BALL_ACCEL_RESIDUAL_GAIN))) {
+                a_forward_g = 0.0f; // 忽略静止零偏和轻微机械振动
+            }
+            if ((a_lateral_g < (APP_BALL_IMU_ACCEL_DEADBAND_G * APP_BALL_ACCEL_RESIDUAL_GAIN)) &&
+                (a_lateral_g > -(APP_BALL_IMU_ACCEL_DEADBAND_G * APP_BALL_ACCEL_RESIDUAL_GAIN))) {
+                a_lateral_g = 0.0f;
+            }
             s_status.imu_accel_valid = true;
         } else {
             s_status.imu_accel_valid = false;
@@ -193,6 +216,10 @@ void APP_BallControl_Init(void)
     s_config.accel_forward_ff_gain = 0.0f;
     s_servo_level_position = APP_BALL_SERVO_LEVEL_DEFAULT;
     s_servo_control_offset = 0;
+    s_motion_velocity_gain = 0.0f;
+    s_motion_acceleration_gain = 0.0f;
+    s_speed_window_frame = 2U;                             // 默认保持第三问原单帧差分行为
+    s_speed_filter_alpha = 0.30f;
     s_config.servo_position_min = DVE_HTS25L_POS_MIN;
     s_config.servo_position_max = DVE_HTS25L_POS_MAX;
 
@@ -222,7 +249,6 @@ void APP_BallControl_Init(void)
     s_last_safety_ms = now;
     s_enable_tick_ms = now;
     s_previous_measurement_tick_ms = now;
-    s_previous_measurement_cm = 0.0f;
 
     reset_control();
     DVE_HTS25L_Init();
@@ -293,6 +319,14 @@ void APP_BallControl_UpdateFromVision(const APP_K230BallFrame_t *frame)
                 s_position_pid.Iout +
                 s_position_pid.Dout +
                 get_feedforward_deg(frame->tick_ms);
+
+    s_status.velocity_feedback_deg =
+        -s_motion_velocity_gain * s_status.estimated_velocity_cm_s; // Kv抵消钢球惯性
+    // 实车安装方向与计划加速度坐标相反，正Ka需要反向映射到横梁倾角
+    s_status.vehicle_accel_feedforward_deg =
+        -s_motion_acceleration_gain * APP_ChassisControl_GetPlannedAccelCmps2();
+    angle_raw += s_status.velocity_feedback_deg +
+                 s_status.vehicle_accel_feedforward_deg;
 
     // 小球存在明显位置误差但基本静止时，补足最低有效倾角以克服静摩擦和机构死区
     if (((s_status.error_cm > APP_BALL_STATIC_ERROR_CM) ||
@@ -469,7 +503,6 @@ void APP_BallControl_Reset(void)
 {
     reset_control();
     s_previous_measurement_tick_ms = Get_Tick();
-    s_previous_measurement_cm = s_status.measured_position_cm;
 }
 
 /*
@@ -503,25 +536,46 @@ void APP_BallControl_SetTargetCm(float target_cm)
 */
 void APP_BallControl_SetMeasuredPositionCm(float x_cm, uint32_t tick_ms)
 {
-    uint32_t sample_ms;
+    uint8_t newest_index;
+    uint8_t oldest_index;
+    uint32_t window_ms;
+    uint32_t accel_ms;
     float raw_speed;
+    float previous_velocity;
 
     x_cm = limit_float(x_cm,
                        -APP_BALL_MEASUREMENT_LIMIT_CM,
                        APP_BALL_MEASUREMENT_LIMIT_CM);
 
-    if (s_status.vision_valid) {
-        sample_ms = tick_ms - s_previous_measurement_tick_ms;
-        if (sample_ms > 0U) {
-            raw_speed = (x_cm - s_previous_measurement_cm) * 1000.0f / (float)sample_ms;
-            s_status.estimated_velocity_cm_s += APP_BALL_SPEED_LPF_ALPHA *
-                                                (raw_speed - s_status.estimated_velocity_cm_s);
-        }
-    } else {
-        s_status.estimated_velocity_cm_s = 0.0f;
+    previous_velocity = s_status.estimated_velocity_cm_s;
+    accel_ms = tick_ms - s_previous_measurement_tick_ms;
+
+    s_position_window[s_window_write_index] = x_cm;
+    s_tick_window[s_window_write_index] = tick_ms;
+    newest_index = s_window_write_index;
+    s_window_write_index = (uint8_t)((s_window_write_index + 1U) % s_speed_window_frame);
+    if (s_window_count < s_speed_window_frame) {
+        s_window_count++;
     }
 
-    s_previous_measurement_cm = x_cm;
+    if (s_window_count >= 2U) {
+        oldest_index = (s_window_count < s_speed_window_frame) ? 0U :
+                       s_window_write_index;
+        window_ms = s_tick_window[newest_index] - s_tick_window[oldest_index];
+        if (window_ms > 0U) {
+            raw_speed = (x_cm - s_position_window[oldest_index]) * 1000.0f /
+                        (float)window_ms;
+            s_status.estimated_velocity_cm_s += s_speed_filter_alpha *
+                                                (raw_speed - s_status.estimated_velocity_cm_s);
+        }
+    }
+
+    if (accel_ms > 0U) {
+        s_status.estimated_acceleration_cm_s2 =
+            (s_status.estimated_velocity_cm_s - previous_velocity) * 1000.0f /
+            (float)accel_ms;
+    }
+
     s_previous_measurement_tick_ms = tick_ms;
     s_status.last_vision_tick_ms = tick_ms;
     s_status.measured_position_cm = x_cm;
@@ -601,6 +655,48 @@ void APP_BallControl_GetPid(PID_t *pid)
     }
 
     *pid = s_position_pid;
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_SetMotionCompensation
+*   功能说明: 设置移动控球附加速度反馈和车辆加速度前馈增益
+*   形    参: velocity_gain - Kv；acceleration_gain - Ka
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_BallControl_SetMotionCompensation(float velocity_gain,
+                                           float acceleration_gain)
+{
+    s_motion_velocity_gain = velocity_gain;
+    s_motion_acceleration_gain = acceleration_gain;
+    s_status.motion_velocity_gain = velocity_gain;         // 同步Kv状态，供串口独立调参和回传
+    s_status.motion_acceleration_gain = acceleration_gain; // 同步Ka状态，供串口独立调参和回传
+    s_status.velocity_feedback_deg = 0.0f;
+    s_status.vehicle_accel_feedforward_deg = 0.0f;
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_SetMotionEstimator
+*   功能说明: 按任务设置球速窗口帧数和低通系数，并清空旧估算历史
+*   形    参: window_frame - 2~APP_BALL_SPEED_WINDOW_FRAME；filter_alpha - 0~1
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_BallControl_SetMotionEstimator(uint8_t window_frame, float filter_alpha)
+{
+    if (window_frame < 2U) window_frame = 2U;
+    if (window_frame > APP_BALL_SPEED_WINDOW_FRAME) {
+        window_frame = APP_BALL_SPEED_WINDOW_FRAME;
+    }
+    if (filter_alpha < 0.0f) filter_alpha = 0.0f;
+    if (filter_alpha > 1.0f) filter_alpha = 1.0f;
+
+    s_speed_window_frame = window_frame;
+    s_speed_filter_alpha = filter_alpha;
+    reset_control(); // 防止切换任务后混用上一任务的位置和速度历史
+    s_previous_measurement_tick_ms = Get_Tick();
 }
 
 /*

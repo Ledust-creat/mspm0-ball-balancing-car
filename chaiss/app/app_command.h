@@ -20,7 +20,7 @@ extern "C" {
 
 #define APP_CMD_ENABLE_ACK_FRAME             (0U)
 #define APP_CMD_ENABLE_ERR_FRAME             (0U)
-#define APP_CMD_ENABLE_WAVE_FRAME            (0U)
+#define APP_CMD_ENABLE_WAVE_FRAME            (DMA_CH_0_TRIG)
 #define APP_CMD_ENABLE_TEXT_STATUS           (1U)
 
 #define APP_CMD_TUNE_TARGET_LINE             (0U)
@@ -82,6 +82,16 @@ extern "C" {
 #define CMD_STATUS_LEFT_PWM                  (0x8AU)     /* 左轮PWM输出 */
 #define CMD_STATUS_RIGHT_PWM                 (0x8BU)     /* 右轮PWM输出 */
 #define CMD_ERR                              (0xE0U)     /* 命令错误应答 */
+
+#define CMD_SET_BALL_KV                      (0x17U)     /* 设置钢球速度反馈系数Kv */
+#define CMD_SET_BALL_KA                      (0x18U)     /* 设置底盘加速度前馈系数Ka */
+#define CMD_STATUS_BALL_KV                   (0x8CU)     /* 回传当前钢球速度反馈系数Kv */
+#define CMD_STATUS_BALL_KA                   (0x8DU)     /* 回传当前底盘加速度前馈系数Ka */
+
+#define CMD_SET_MOBILE_ACCEL_STEP            (0x19U)     /* 设置移动任务每20ms加速步长cm/s */
+#define CMD_SET_MOBILE_DECEL_STEP            (0x1AU)     /* 设置移动任务每20ms减速步长cm/s */
+#define CMD_STATUS_MOBILE_ACCEL_STEP         (0x8EU)     /* 回传当前每20ms加速步长 */
+#define CMD_STATUS_MOBILE_DECEL_STEP         (0x8FU)     /* 回传当前每20ms减速步长 */
 
 #define APP_CMD_ERR_FORMAT                   (1.0f)
 #define APP_CMD_ERR_CHECKSUM                 (2.0f)

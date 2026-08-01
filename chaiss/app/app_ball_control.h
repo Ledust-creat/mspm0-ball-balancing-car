@@ -24,24 +24,25 @@ extern "C" {
 #define APP_BALL_MEASUREMENT_LIMIT_CM       (16.0f)     /* 外部位置输入合理范围，单位cm */
 #define APP_BALL_SPEED_WINDOW_FRAME         (10U)       /* 速度估计位置窗口帧数 */
 #define APP_BALL_SPEED_FILTER_ALPHA         (0.25f)     /* 窗口速度一阶低通新数据权重 */
-#define APP_BALL_DEFAULT_KP                 (0.25f)     /* 钢球位置环默认Kp */
-#define APP_BALL_DEFAULT_KI                 (0.01f)     /* 钢球位置环默认Ki */
-#define APP_BALL_DEFAULT_KD                 (0.8f)     /* 钢球位置环默认Kd */
+#define APP_BALL_DEFAULT_KP                 (0.30f)     /* 钢球位置环默认Kp */
+#define APP_BALL_DEFAULT_KI                 (0.1f)     /* 钢球位置环默认Ki */
+#define APP_BALL_DEFAULT_KD                 (0.5f)     /* 钢球位置环默认Kd */
 #define APP_BALL_INTEGRAL_LIMIT_DEG         (6.0f)      /* 位置环积分输出限幅，单位deg */
 #define APP_BALL_STATIC_ERROR_CM             (0.5f)      /* 超过该误差才允许静摩擦补偿 */
 #define APP_BALL_STATIC_SPEED_CM_S           (0.3f)      /* 低于该速度认为钢球基本静止 */
-#define APP_BALL_STATIC_MIN_ANGLE_DEG        (0.0f)      /* 克服机构和钢球静摩擦的最低倾角 */
+#define APP_BALL_STATIC_MIN_ANGLE_DEG        (0.30f)     /* 克服机构和钢球静摩擦的最低倾角 */
 #define APP_BALL_SERVO_LEVEL_DEFAULT        (470U)      /* 上电默认水平零点，仅保存在RAM */
 #define APP_BALL_SERVO_LEVEL_MIN            (DVE_HTS25L_POS_MIN + 60U)  /* 零点允许下限，预留负偏移空间 */
 #define APP_BALL_SERVO_LEVEL_MAX            (DVE_HTS25L_POS_MAX - 100U) /* 零点允许上限，预留正偏移空间 */
 
-#define APP_BALL_ACCEL_FF_ENABLE            (0U)        /* 加速度前馈总开关，初期保持关闭 */
-#define APP_BALL_PLAN_ACCEL_FF_ENABLE       (0U)        /* 规划加速度前馈开关 */
-#define APP_BALL_IMU_ACCEL_FF_ENABLE        (0U)        /* IMU残差修正开关 */
-#define APP_BALL_ACCEL_RESIDUAL_GAIN        (0.30f)     /* IMU相对规划加速度的残差增益 */
+#define APP_BALL_ACCEL_FF_ENABLE            (1U)        /* IMU加速度前馈计算总开关 */
+#define APP_BALL_PLAN_ACCEL_FF_ENABLE       (0U)        /* 计划加速度由第四问Ka单独处理，避免重复叠加 */
+#define APP_BALL_IMU_ACCEL_FF_ENABLE        (0U)        /* 暂时屏蔽IMU实测加速度，只调计划加速度Ka */
+#define APP_BALL_ACCEL_RESIDUAL_GAIN        (0.30f)     /* IMU加速度参与比例，范围0~1 */
+#define APP_BALL_IMU_ACCEL_DEADBAND_G       (0.020f)    /* IMU静止噪声死区，单位g */
 #define APP_BALL_TUBE_FORWARD_GAIN          (0.0f)      /* 管轴对车体前向加速度投影系数 */
 #define APP_BALL_TUBE_LATERAL_GAIN          (1.0f)      /* 管轴对车体横向加速度投影系数 */
-#define APP_BALL_ACCEL_FF_DEG_PER_G         (0.0f)      /* 管轴加速度到前馈角度系数 */
+#define APP_BALL_ACCEL_FF_DEG_PER_G         (10.0f)     /* IMU管轴加速度前馈比例，单位deg/g */
 #define APP_BALL_ACCEL_FF_LIMIT_DEG         (2.0f)      /* 加速度前馈单独限幅 */
 
 /*
@@ -111,6 +112,8 @@ typedef struct
     bool enabled;                           /* true表示闭环使能 */
     bool imu_accel_valid;                   /* true表示本次使用的IMU加速度缓存有效 */
     bool saturated;                         /* true表示角度或舵机输出发生限幅 */
+    float motion_velocity_gain;             /* 钢球速度反馈系数Kv */
+    float motion_acceleration_gain;         /* 底盘加速度前馈系数Ka */
 } APP_BallControlStatus_t;
 
 /*

@@ -249,12 +249,14 @@ DVE_ChassisStatus_t DVE_Chassis_SetPwm(int16_t left_pwm, int16_t right_pwm)
 
     left_pwm = (int16_t)((float)left_pwm * s_left_pwm_ratio);
     right_pwm = (int16_t)((float)right_pwm * s_right_pwm_ratio);
-    
-    left_pwm = (int16_t)(left_pwm * DVE_CHASSIS_DEFAULT_LEFT_SIGN);
-    right_pwm = (int16_t)(right_pwm * DVE_CHASSIS_DEFAULT_RIGHT_SIGN);
 
+    // 状态回传保留逻辑PWM符号：正值表示车体前进，避免与底层接线方向宏混淆
     s_left_pwm_out = (float)left_pwm;
     s_right_pwm_out = (float)right_pwm;
+
+    // 方向宏只用于转换为实际电机驱动引脚方向，不参与上层状态语义
+    left_pwm = (int16_t)(left_pwm * DVE_CHASSIS_DEFAULT_LEFT_SIGN);
+    right_pwm = (int16_t)(right_pwm * DVE_CHASSIS_DEFAULT_RIGHT_SIGN);
 
     BSP_ChassisMotor_SetLeftPwm(left_pwm);
     BSP_ChassisMotor_SetRightPwm(right_pwm);

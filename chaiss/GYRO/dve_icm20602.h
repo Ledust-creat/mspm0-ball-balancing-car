@@ -53,7 +53,7 @@ extern "C" {
 #define DVE_ICM20602_ENABLE_ACCEL_XY_CALIB      (1U)        /* 1启动时标定X/Y静态加速度零偏 */
 #define DVE_ICM20602_ACCEL_XY_LPF_ALPHA         (0.20f)     /* X/Y动态加速度低通新数据权重 */
 #define DVE_ICM20602_ACCEL_X_SIGN               (1.0f)      /* 车体X加速度方向修正 */
-#define DVE_ICM20602_ACCEL_Y_SIGN               (1.0f)      /* 车体Y加速度方向修正 */
+#define DVE_ICM20602_ACCEL_Y_SIGN               (-1.0f)     /* 车体Y加速度方向修正，向右加速为正 */
 #define DVE_ICM20602_ENABLE_FRAME_TRANSFORM     (1U)        /* 1启用安装方向与固定偏角修正 */
 
 #define DVE_ICM20602_INSTALL_X_FORWARD          (0U)        /* 传感器X轴指向车头 */

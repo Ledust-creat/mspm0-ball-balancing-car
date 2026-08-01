@@ -52,6 +52,7 @@ typedef struct
 void APP_LineFollow_Init(void);
 void APP_LineFollow_Reset(void);
 void APP_LineFollow_SetPid(float kp, float ki, float kd);
+void APP_LineFollow_SetErrorFilterAlpha(float alpha);
 void APP_LineFollow_Update(APP_LineFollowOutput_t *output);
 void APP_LineFollow_GetState(APP_LineFollowState_t *state);
 

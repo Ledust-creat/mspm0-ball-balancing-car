@@ -153,7 +153,9 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 
     DL_GPIO_initDigitalOutput(led_PIN_0_IOMUX);
 
-    DL_GPIO_initDigitalOutput(ICM20602_PIN_1_IOMUX);
+    DL_GPIO_initDigitalOutputFeatures(ICM20602_PIN_1_IOMUX,
+		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP,
+		 DL_GPIO_DRIVE_STRENGTH_LOW, DL_GPIO_HIZ_DISABLE);
 
     DL_GPIO_initDigitalOutput(Chassis_MotorA_AIN1_IOMUX);
 
@@ -553,7 +555,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_UART_HTS25L_init(void)
 
 static const DL_SPI_Config gSPI_ICM20602_config = {
     .mode        = DL_SPI_MODE_CONTROLLER,
-    .frameFormat = DL_SPI_FRAME_FORMAT_MOTO3_POL1_PHA0,
+    .frameFormat = DL_SPI_FRAME_FORMAT_MOTO3_POL1_PHA1,
     .parity      = DL_SPI_PARITY_NONE,
     .dataSize    = DL_SPI_DATA_SIZE_8,
     .bitOrder    = DL_SPI_BIT_ORDER_MSB_FIRST,

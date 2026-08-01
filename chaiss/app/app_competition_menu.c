@@ -1,6 +1,5 @@
 #include "app_competition_menu.h"
 #include "app_ball_control.h"
-#include "app_competition_control.h"
 #include "bsp_key.h"
 #include "interrupt.h"
 #include "OLED.h"
@@ -15,7 +14,7 @@
 #define APP_MENU_COUNTDOWN_MS            (3000U)    /* 倒计时时长，单位ms */
 #define APP_MENU_DEBOUNCE_COUNT          (3U)       /* 按键消抖连续稳定次数，单位次 */
 #define APP_MENU_LINE_WIDTH              (16U)      /* OLED一行字符数，单位char */
-#define APP_MENU_ITEM_COUNT              (APP_COMP_MODE_COUNT + 1U) /* 五个比赛项加一个校准工具项 */
+#define APP_MENU_ITEM_COUNT              (APP_COMP_MODE_COUNT + 1U) /* 五个比赛题目加一个舵机校准工具项 */
 #define APP_MENU_SERVO_ZERO_ITEM         (APP_COMP_MODE_COUNT)
 #define APP_MENU_KEY_REPEAT_DELAY_MS     (500U)     /* 长按开始连发等待时间 */
 #define APP_MENU_KEY_REPEAT_PERIOD_MS    (100U)     /* 长按连续调整周期 */
@@ -58,8 +57,8 @@ static APP_KeyFilter_t s_zero_inc_key;            /* 水平零点增加按键状
 static APP_CompetitionMode_t s_selected_mode;     /* 当前选中的比赛小题 */
 static uint8_t s_selected_item;                    /* 当前菜单项，含校准工具项 */
 static APP_CompetitionUiState_t s_ui_state;       /* 当前OLED菜单状态 */
-static uint16_t s_servo_zero_backup;               /* 进入校准前的水平零点 */
-static uint16_t s_servo_zero_edit;                 /* 校准页面正在编辑的水平零点 */
+static uint16_t s_servo_zero_backup;              /* 进入校准前的水平零点 */
+static uint16_t s_servo_zero_edit;                /* 校准页面正在编辑的水平零点 */
 
 static bool s_start_request;                      /* 倒计时结束产生的一次性启动请求 */
 static bool s_stop_request;                       /* 用户停止产生的一次性停止请求 */
@@ -138,6 +137,7 @@ static void key_filter_update(APP_KeyFilter_t *key, bool raw_pressed, uint32_t n
         key->last_repeat_ms = now_ms;
         key->repeat_event = true;
     }
+
 }
 
 /*
@@ -159,14 +159,13 @@ static void menu_scan_keys(uint32_t now_ms)
 /*
 *********************************************************************************************************
 *   函 数 名: menu_enter_servo_zero
-*   功能说明: 停止当前任务并进入舵机水平零点校准页
+*   功能说明: 进入舵机水平零点校准页，不修改底盘和比赛任务状态
 *   形    参: 无
 *   返 回 值: 无
 *********************************************************************************************************
 */
 static void menu_enter_servo_zero(void)
 {
-    APP_CompetitionControl_Stop(); // 校准前关闭底盘、比赛任务和钢球闭环
     s_servo_zero_backup = APP_BallControl_GetServoLevelPosition();
     s_servo_zero_edit = s_servo_zero_backup;
     APP_BallControl_SetServoTestPosition(s_servo_zero_edit);
@@ -275,15 +274,15 @@ static void menu_update_state(uint32_t now_ms)
         case APP_COMP_UI_SERVO_ZERO_CALIBRATION:
             // SELECT取消并恢复备份，CONFIRM保存当前RAM零点
             if (s_select_key.pressed_event) {
-                APP_BallControl_SetServoLevelPosition(s_servo_zero_backup); // 取消时恢复进入前零点
+                APP_BallControl_SetServoLevelPosition(s_servo_zero_backup);
                 APP_BallControl_SetEnable(0U);
                 menu_enter_select();
             } else if (s_confirm_key.pressed_event) {
-                APP_BallControl_SetServoLevelPosition(s_servo_zero_edit); // 保存仅保留在RAM
+                APP_BallControl_SetServoLevelPosition(s_servo_zero_edit);
                 APP_BallControl_SetEnable(0U);
                 menu_enter_select();
             } else if (!(s_zero_dec_key.stable_state && s_zero_inc_key.stable_state)) {
-                // 两个调节键同时按下时不改变零点，避免方向冲突
+                // 两个调节键同时按下时忽略调整，避免方向冲突
                 if (s_zero_dec_key.pressed_event || s_zero_dec_key.repeat_event) {
                     APP_BallControl_SetServoLevelPosition((uint16_t)(s_servo_zero_edit - 1U));
                     s_servo_zero_edit = APP_BallControl_GetServoLevelPosition();
@@ -489,6 +488,7 @@ static void menu_update_running_time_digits(uint32_t now_ms)
     OLED_ShowChar(2U, 10U, '.');
     OLED_ShowNum(2U, 11U, tenths, 1U);
     OLED_ShowChar(2U, 12U, 's');
+
 }
 
 /*

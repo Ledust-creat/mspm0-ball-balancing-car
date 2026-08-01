@@ -37,9 +37,10 @@ extern "C" {
 
 #define APP_BALL_ACCEL_FF_ENABLE            (1U)        /* IMU加速度前馈计算总开关 */
 #define APP_BALL_PLAN_ACCEL_FF_ENABLE       (0U)        /* 计划加速度由第四问Ka单独处理，避免重复叠加 */
-#define APP_BALL_IMU_ACCEL_FF_ENABLE        (0U)        /* 暂时屏蔽IMU实测加速度，只调计划加速度Ka */
+#define APP_BALL_IMU_ACCEL_FF_ENABLE        (1U)        /* 启用后台10ms IMU动态加速度前馈 */
 #define APP_BALL_ACCEL_RESIDUAL_GAIN        (0.30f)     /* IMU加速度参与比例，范围0~1 */
 #define APP_BALL_IMU_ACCEL_DEADBAND_G       (0.020f)    /* IMU静止噪声死区，单位g */
+#define APP_BALL_IMU_ACCEL_FF_DIR           (-1.0f)     /* 横梁补偿方向与导轨轴向加速度相反 */
 #define APP_BALL_TUBE_FORWARD_GAIN          (0.0f)      /* 管轴对车体前向加速度投影系数 */
 #define APP_BALL_TUBE_LATERAL_GAIN          (1.0f)      /* 管轴对车体横向加速度投影系数 */
 #define APP_BALL_ACCEL_FF_DEG_PER_G         (10.0f)     /* IMU管轴加速度前馈比例，单位deg/g */
@@ -114,6 +115,7 @@ typedef struct
     bool saturated;                         /* true表示角度或舵机输出发生限幅 */
     float motion_velocity_gain;             /* 钢球速度反馈系数Kv */
     float motion_acceleration_gain;         /* 底盘加速度前馈系数Ka */
+    float imu_accel_gain;                   /* IMU实测加速度参与比例 */
 } APP_BallControlStatus_t;
 
 /*
@@ -138,6 +140,7 @@ void APP_BallControl_SetPid(float kp, float ki, float kd);
 void APP_BallControl_GetPid(PID_t *pid);
 void APP_BallControl_SetMotionCompensation(float velocity_gain,
                                            float acceleration_gain);
+void APP_BallControl_SetImuAccelGain(float gain);
 void APP_BallControl_SetMotionEstimator(uint8_t window_frame, float filter_alpha);
 void APP_BallControl_SetServoTestPosition(uint16_t pos);
 void APP_BallControl_SetServoLevelPosition(uint16_t position);

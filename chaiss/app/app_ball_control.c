@@ -28,6 +28,7 @@ static uint8_t s_speed_window_frame;                       /* 当前任务使用
 static float s_speed_filter_alpha;                         /* 当前任务使用的速度低通系数 */
 static float s_motion_velocity_gain;                       /* 移动控球附加速度反馈Kv */
 static float s_motion_acceleration_gain;                   /* 车辆加速度前馈Ka */
+static float s_imu_accel_gain;                             /* IMU实测加速度参与比例 */
 
 /*
 *********************************************************************************************************
@@ -130,17 +131,17 @@ static float get_feedforward_deg(uint32_t frame_tick_ms)
 
         if (APP_GyroControl_GetLatestAccel(&imu_data) &&
             ((uint32_t)(frame_tick_ms - imu_data.update_tick_ms) <= APP_IMU_DATA_TIMEOUT_MS)) {
-            // 删除计划斜坡后，直接使用IMU实测加速度进行前馈补偿
-            a_forward_g = APP_BALL_ACCEL_RESIDUAL_GAIN *
+            // DVE层已完成安装轴向和Y轴反向修正，此处只保留有效动态加速度
+            a_forward_g = s_imu_accel_gain *
                           imu_data.accel_forward_g;
-            a_lateral_g = APP_BALL_ACCEL_RESIDUAL_GAIN *
+            a_lateral_g = s_imu_accel_gain *
                           imu_data.accel_lateral_g;
-            if ((a_forward_g < (APP_BALL_IMU_ACCEL_DEADBAND_G * APP_BALL_ACCEL_RESIDUAL_GAIN)) &&
-                (a_forward_g > -(APP_BALL_IMU_ACCEL_DEADBAND_G * APP_BALL_ACCEL_RESIDUAL_GAIN))) {
+            if ((a_forward_g < (APP_BALL_IMU_ACCEL_DEADBAND_G * s_imu_accel_gain)) &&
+                (a_forward_g > -(APP_BALL_IMU_ACCEL_DEADBAND_G * s_imu_accel_gain))) {
                 a_forward_g = 0.0f; // 忽略静止零偏和轻微机械振动
             }
-            if ((a_lateral_g < (APP_BALL_IMU_ACCEL_DEADBAND_G * APP_BALL_ACCEL_RESIDUAL_GAIN)) &&
-                (a_lateral_g > -(APP_BALL_IMU_ACCEL_DEADBAND_G * APP_BALL_ACCEL_RESIDUAL_GAIN))) {
+            if ((a_lateral_g < (APP_BALL_IMU_ACCEL_DEADBAND_G * s_imu_accel_gain)) &&
+                (a_lateral_g > -(APP_BALL_IMU_ACCEL_DEADBAND_G * s_imu_accel_gain))) {
                 a_lateral_g = 0.0f;
             }
             s_status.imu_accel_valid = true;
@@ -155,7 +156,9 @@ static float get_feedforward_deg(uint32_t frame_tick_ms)
     // 将车体前向和横向加速度投影到钢球导轨轴向
     a_tube_g = APP_BALL_TUBE_FORWARD_GAIN * a_forward_g +
                APP_BALL_TUBE_LATERAL_GAIN * a_lateral_g;
-    feedforward = APP_BALL_ACCEL_FF_DEG_PER_G * a_tube_g;
+    // 横梁需要向惯性运动的反方向倾斜，因此在APP层统一反向映射
+    feedforward = APP_BALL_IMU_ACCEL_FF_DIR *
+                  APP_BALL_ACCEL_FF_DEG_PER_G * a_tube_g;
     feedforward = limit_float(feedforward,
                               -APP_BALL_ACCEL_FF_LIMIT_DEG,
                               APP_BALL_ACCEL_FF_LIMIT_DEG);
@@ -218,6 +221,8 @@ void APP_BallControl_Init(void)
     s_servo_control_offset = 0;
     s_motion_velocity_gain = 0.0f;
     s_motion_acceleration_gain = 0.0f;
+    s_imu_accel_gain = APP_BALL_ACCEL_RESIDUAL_GAIN;
+    s_status.imu_accel_gain = s_imu_accel_gain;
     s_speed_window_frame = 2U;                             // 默认保持第三问原单帧差分行为
     s_speed_filter_alpha = 0.30f;
     s_config.servo_position_min = DVE_HTS25L_POS_MIN;
@@ -674,6 +679,20 @@ void APP_BallControl_SetMotionCompensation(float velocity_gain,
     s_status.motion_acceleration_gain = acceleration_gain; // 同步Ka状态，供串口独立调参和回传
     s_status.velocity_feedback_deg = 0.0f;
     s_status.vehicle_accel_feedforward_deg = 0.0f;
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_SetImuAccelGain
+*   功能说明: 设置IMU实测动态加速度参与比例
+*   形    参: gain - 参与比例，范围0~1
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_BallControl_SetImuAccelGain(float gain)
+{
+    s_imu_accel_gain = limit_float(gain, 0.0f, 1.0f);
+    s_status.imu_accel_gain = s_imu_accel_gain;
 }
 
 /*

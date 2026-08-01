@@ -268,6 +268,8 @@ void Command_SendStatus(void)
                         control.mobile_accel_step_cm_s);
     Command_PackAndSend(CMD_STATUS_MOBILE_DECEL_STEP,
                         control.mobile_decel_step_cm_s);
+    Command_PackAndSend(CMD_STATUS_BALL_IMU_ACCEL_GAIN,
+                        ball.imu_accel_gain);
 }
 
 /*
@@ -403,6 +405,13 @@ void Command_Parse(uint8_t *buf, uint8_t len)
                 APP_ChassisControl_SetMobileRampStep(
                     control.mobile_accel_step_cm_s, data);
             }
+            break;
+        case CMD_SET_BALL_IMU_ACCEL_GAIN:
+            if (!value_in_range(data, 0.0f, 1.0f)) {
+                send_error(APP_CMD_ERR_PARAM);
+                return;
+            }
+            APP_BallControl_SetImuAccelGain(data);
             break;
         case CMD_SET_BALL_TARGET:
             if (!value_in_range(data,
@@ -627,6 +636,8 @@ static void send_text_status(void)
     p = append_f2(p, control.mobile_accel_step_cm_s);
     p = append_str(p, ",down=");
     p = append_f2(p, control.mobile_decel_step_cm_s);
+    p = append_str(p, ",imu_k=");
+    p = append_f2(p, ball.imu_accel_gain);
     p = append_str(p, ",ang=");
     p = append_f2(p, ball.angle_cmd_deg);
     p = append_str(p, ",pos=");

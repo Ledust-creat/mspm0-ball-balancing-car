@@ -93,6 +93,9 @@ extern "C" {
 #define CMD_STATUS_MOBILE_ACCEL_STEP         (0x8EU)     /* 回传当前每20ms加速步长 */
 #define CMD_STATUS_MOBILE_DECEL_STEP         (0x8FU)     /* 回传当前每20ms减速步长 */
 
+#define CMD_SET_BALL_IMU_ACCEL_GAIN          (0x1BU)     /* 设置IMU实测加速度参与比例0~1 */
+#define CMD_STATUS_BALL_IMU_ACCEL_GAIN       (0x90U)     /* 回传IMU实测加速度参与比例 */
+
 #define APP_CMD_ERR_FORMAT                   (1.0f)
 #define APP_CMD_ERR_CHECKSUM                 (2.0f)
 #define APP_CMD_ERR_UNKNOWN                  (3.0f)

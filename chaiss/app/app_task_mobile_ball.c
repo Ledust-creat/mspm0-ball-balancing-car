@@ -24,7 +24,7 @@
 #define APP_AB_BALL_PID_KI                     (0.02f)    /* 第四问AB控球位置环Ki */
 #define APP_AB_BALL_PID_KD                     (0.20f)    /* 第四问位置环速度阻尼Kd */
 #define APP_AB_BALL_SPEED_K                    (0.5f)    /* 第四问移动控球附加速度反馈Kv */
-#define APP_AB_ACCEL_FF_K                      (0.24f)   /* 第四问计划加速度前馈Ka，单位deg/(cm/s^2) */
+#define APP_AB_ACCEL_FF_K                      (0.235f)   /* 第四问计划加速度前馈Ka，单位deg/(cm/s^2) */
 
 /*
 *********************************************************************************************************

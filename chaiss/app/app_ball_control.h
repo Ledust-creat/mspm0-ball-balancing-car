@@ -41,7 +41,8 @@ extern "C" {
 #define APP_BALL_ACCEL_RESIDUAL_GAIN        (0.30f)     /* IMU加速度参与比例，范围0~1 */
 #define APP_BALL_IMU_ACCEL_DEADBAND_G       (0.020f)    /* IMU静止噪声死区，单位g */
 #define APP_BALL_IMU_ACCEL_FF_DIR           (-1.0f)     /* 横梁补偿方向与导轨轴向加速度相反 */
-#define APP_BALL_TUBE_FORWARD_GAIN          (0.0f)      /* 管轴对车体前向加速度投影系数 */
+#define APP_BALL_IMU_FF_MIN_CHASSIS_SPEED_CM_S (2.0f)   /* 低于该规划速度时关闭IMU前馈 */
+#define APP_BALL_TUBE_FORWARD_GAIN          (1.0f)      /* 管轴对车体前向加速度投影系数 */
 #define APP_BALL_TUBE_LATERAL_GAIN          (1.0f)      /* 管轴对车体横向加速度投影系数 */
 #define APP_BALL_ACCEL_FF_DEG_PER_G         (10.0f)     /* IMU管轴加速度前馈比例，单位deg/g */
 #define APP_BALL_ACCEL_FF_LIMIT_DEG         (2.0f)      /* 加速度前馈单独限幅 */

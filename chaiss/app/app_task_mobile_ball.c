@@ -8,7 +8,7 @@
 *   宏定义
 *********************************************************************************************************
 */
-#define APP_MOBILE_PRE_HOLD_MS                 (400U)     /* 发车前控球稳定时间 */
+#define APP_MOBILE_PRE_HOLD_MS                 (10U)     /* 发车前控球稳定时间 */
 #define APP_MOBILE_FINAL_HOLD_MS               (500U)     /* 停车后继续控球时间 */
 #define APP_MOBILE_VISION_WAIT_TIMEOUT_MS      (1000U)    /* 等待首帧视觉超时 */
 #define APP_MOBILE_AB_CURVE_IGNORE_MS          (4000U)    /* AB模式发车后弯道检测屏蔽时间 */
@@ -17,14 +17,18 @@
 #define APP_MOBILE_FINISH_CONFIRM_MS           (60U)      /* 结束条件连续确认时间 */
 #define APP_MOBILE_AB_CURVE_ERROR_MIN          (3.0f)     /* AB模式进入首个弯道误差阈值 */
 #define APP_MOBILE_RAMP_READY_RATIO            (0.80f)    /* 规划速度达到目标比例后进入运行 */
-#define APP_MOBILE_CRUISE_SPEED_CENTER_CM_S    (22.0f)    /* 中心控球巡航速度 */
+#define APP_MOBILE_CRUISE_SPEED_CENTER_CM_S    (24.0f)    /* 中心控球巡航速度 */
 #define APP_MOBILE_CRUISE_SPEED_TARGET_CM_S    (15.0f)    /* 指定位置控球巡航速度 */
+#define APP_LAP_TARGET_POSITION_TOLERANCE_CM    (1.0f)     /* 第五问停车后位置误差要求 */
+#define APP_LAP_TARGET_SPEED_TOLERANCE_CM_S     (0.5f)     /* 第五问稳定判定最大球速 */
+#define APP_LAP_TARGET_STABLE_CONFIRM_MS        (500U)     /* 第五问连续稳定确认时间 */
+#define APP_LAP_TARGET_SETTLE_TIMEOUT_MS        (3000U)    /* 第五问停车后最大稳定等待时间 */
 
 #define APP_AB_BALL_PID_KP                     (0.31f)    /* 第四问AB控球位置环Kp */
 #define APP_AB_BALL_PID_KI                     (0.02f)    /* 第四问AB控球位置环Ki */
 #define APP_AB_BALL_PID_KD                     (0.20f)    /* 第四问位置环速度阻尼Kd */
 #define APP_AB_BALL_SPEED_K                    (0.5f)    /* 第四问移动控球附加速度反馈Kv */
-#define APP_AB_ACCEL_FF_K                      (0.235f)   /* 第四问计划加速度前馈Ka，单位deg/(cm/s^2) */
+#define APP_AB_ACCEL_FF_K                      (0.205f)   /* 第四问计划加速度前馈Ka，单位deg/(cm/s^2) */
 
 /*
 *********************************************************************************************************
@@ -39,6 +43,8 @@ static uint32_t s_start_tick_ms;                /* 底盘实际发车时刻，�
 static uint32_t s_state_start_ms;               /* 当前状态进入时刻，单位ms */
 static uint32_t s_finish_detect_start_ms;       /* 结束条件首次成立时刻，单位ms */
 static bool s_finish_detecting;                 /* true表示正在连续确认结束条件 */
+static uint32_t s_target_stable_start_ms;        /* 第五问满足稳定条件的起始时刻 */
+static bool s_target_stable_detecting;           /* true表示正在连续确认钢球稳定 */
 
 /*
 *********************************************************************************************************
@@ -77,6 +83,8 @@ static void enter_state(APP_MobileBallState_t state, uint32_t now_ms)
     s_state_start_ms = now_ms;           // 每个状态使用独立进入时间
     s_finish_detect_start_ms = 0U;       // 状态切换后重新确认结束条件
     s_finish_detecting = false;
+    s_target_stable_start_ms = 0U;
+    s_target_stable_detecting = false;
 }
 
 /*
@@ -137,6 +145,8 @@ void APP_TaskMobileBall_Init(void)
     s_state_start_ms = 0U;
     s_finish_detect_start_ms = 0U;
     s_finish_detecting = false;
+    s_target_stable_start_ms = 0U;
+    s_target_stable_detecting = false;
     // Kv/Ka仅在上电初始化一次，后续任务启动不得覆盖串口调参结果
     APP_BallControl_SetMotionCompensation(APP_AB_BALL_SPEED_K,
                                           APP_AB_ACCEL_FF_K);
@@ -268,8 +278,35 @@ void APP_TaskMobileBall_Task(uint32_t now_ms)
             break;
 
         case APP_MOBILE_BALL_FINAL_HOLD:
-            if ((uint32_t)(now_ms - s_state_start_ms) >= APP_MOBILE_FINAL_HOLD_MS) {
-                s_state = APP_MOBILE_BALL_FINISHED; // 保留钢球闭环输出，仅通知菜单任务完成
+            if (s_mode == APP_MOBILE_MODE_LAP_TARGET) {
+                bool position_ok;
+                bool speed_ok;
+
+                position_ok = (abs_float(ball.error_cm) <=
+                               APP_LAP_TARGET_POSITION_TOLERANCE_CM);
+                speed_ok = (abs_float(ball.estimated_velocity_cm_s) <=
+                            APP_LAP_TARGET_SPEED_TOLERANCE_CM_S);
+
+                if (position_ok && speed_ok) {
+                    if (!s_target_stable_detecting) {
+                        s_target_stable_detecting = true;
+                        s_target_stable_start_ms = now_ms; // 首次同时满足位置和速度要求
+                    } else if ((uint32_t)(now_ms - s_target_stable_start_ms) >=
+                               APP_LAP_TARGET_STABLE_CONFIRM_MS) {
+                        s_state = APP_MOBILE_BALL_FINISHED; // 连续稳定500ms后才判定第五问完成
+                    }
+                } else {
+                    s_target_stable_detecting = false; // 任一条件失效后重新累计稳定时间
+                }
+
+                if ((s_state != APP_MOBILE_BALL_FINISHED) &&
+                    ((uint32_t)(now_ms - s_state_start_ms) >=
+                     APP_LAP_TARGET_SETTLE_TIMEOUT_MS)) {
+                    enter_fault(); // 超时仍未达到±1cm要求，不允许误报完成
+                }
+            } else if ((uint32_t)(now_ms - s_state_start_ms) >=
+                       APP_MOBILE_FINAL_HOLD_MS) {
+                s_state = APP_MOBILE_BALL_FINISHED; // 第四问和中心控球保持原完成逻辑
             }
             break;
 
@@ -294,6 +331,7 @@ void APP_TaskMobileBall_Stop(void)
     APP_BallControl_SetEnable(0U);                    // 人工停止时关闭控球并回安全中位
     s_state = APP_MOBILE_BALL_IDLE;
     s_finish_detecting = false;
+    s_target_stable_detecting = false;
 }
 
 /*

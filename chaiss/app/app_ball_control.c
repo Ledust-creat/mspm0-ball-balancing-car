@@ -122,6 +122,7 @@ static float get_feedforward_deg(uint32_t frame_tick_ms)
     float a_lateral_g = 0.0f;
     float a_tube_g;
     float feedforward;
+    APP_ChassisControlState_t chassis_control;
 
     a_forward_g = 0.0f;
 
@@ -152,6 +153,15 @@ static float get_feedforward_deg(uint32_t frame_tick_ms)
 #else
     s_status.imu_accel_valid = false;
 #endif
+
+    APP_ChassisControl_GetState(&chassis_control);
+    if (!chassis_control.is_running ||
+        (chassis_control.planned_base_speed_cm_s <=
+         APP_BALL_IMU_FF_MIN_CHASSIS_SPEED_CM_S)) {
+        // 底盘停稳和极低速阶段不采用IMU噪声，但不修改串口设置的参与比例
+        a_forward_g = 0.0f;
+        a_lateral_g = 0.0f;
+    }
 
     // 将车体前向和横向加速度投影到钢球导轨轴向
     a_tube_g = APP_BALL_TUBE_FORWARD_GAIN * a_forward_g +

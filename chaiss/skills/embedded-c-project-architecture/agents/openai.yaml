@@ -1,0 +1,4 @@
+interface:
+  display_name: "嵌入式 C 工程架构"
+  short_description: "设计可验证的嵌入式控制、监测、通信与物联网工程"
+  default_prompt: "使用 $embedded-c-project-architecture 根据项目类型设计或重构这个嵌入式工程，明确分层、时序、数据有效性、故障策略、工程化注释和验证证据。"

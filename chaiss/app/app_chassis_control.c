@@ -246,6 +246,8 @@ void APP_ChassisControl_Task(void)
         if (s_soft_stop_requested &&
             (s_planned_base_speed_cm_s <= APP_CHASSIS_SOFT_STOP_EPSILON_CM_S)) {
             s_planned_base_speed_cm_s = 0.0f;
+            s_planned_accel_cm_s2 = 0.0f; // 停稳后立即撤销计划前馈，避免横梁持续保持减速倾角
+            s_last_run_base_speed_cm_s = 0.0f;
             s_soft_stopped = true;
             s_is_running = false;
             DVE_Chassis_Enable(false);

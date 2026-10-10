@@ -64,6 +64,6 @@ void APP_Scheduler_RunOnce(void)
 
     APP_CompetitionControl_Task(now_ms);
 
-    APP_Command_Task();                   // 蓝牙显式命令和低频状态回传
+    // APP_Command_Task();                   // 蓝牙显式命令和低频状态回传
     APP_CompetitionMenu_DisplayTask();    // OLED最低优先级执行
 }

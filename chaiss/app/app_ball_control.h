@@ -112,6 +112,7 @@ typedef struct
     uint32_t last_vision_tick_ms;           /* 最近有效视觉帧收帧时刻，单位ms */
     bool vision_valid;                      /* true表示当前视觉数据有效 */
     bool enabled;                           /* true表示闭环使能 */
+    bool motion_compensation_enabled;       /* true表示使用已保存的Kv/Ka，false仅屏蔽输出 */
     bool imu_accel_valid;                   /* true表示本次使用的IMU加速度缓存有效 */
     bool saturated;                         /* true表示角度或舵机输出发生限幅 */
     float motion_velocity_gain;             /* 钢球速度反馈系数Kv */
@@ -141,6 +142,7 @@ void APP_BallControl_SetPid(float kp, float ki, float kd);
 void APP_BallControl_GetPid(PID_t *pid);
 void APP_BallControl_SetMotionCompensation(float velocity_gain,
                                            float acceleration_gain);
+void APP_BallControl_SetMotionCompensationEnabled(bool enable);
 void APP_BallControl_SetImuAccelGain(float gain);
 void APP_BallControl_SetMotionEstimator(uint8_t window_frame, float filter_alpha);
 void APP_BallControl_SetServoTestPosition(uint16_t pos);

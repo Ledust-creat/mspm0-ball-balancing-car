@@ -253,6 +253,7 @@ void APP_BallControl_Init(void)
     s_status.last_vision_tick_ms = now;
     s_status.vision_valid = false;
     s_status.enabled = false;
+    s_status.motion_compensation_enabled = true; // 默认沿用原补偿行为，静态任务可临时屏蔽
 
     s_vision_calibration.center_x_px = 0.0f;
     s_vision_calibration.cm_per_px = 0.0f;
@@ -335,11 +336,15 @@ void APP_BallControl_UpdateFromVision(const APP_K230BallFrame_t *frame)
                 s_position_pid.Dout +
                 get_feedforward_deg(frame->tick_ms);
 
-    s_status.velocity_feedback_deg =
-        -s_motion_velocity_gain * s_status.estimated_velocity_cm_s; // Kv抵消钢球惯性
-    // 实车安装方向与计划加速度坐标相反，正Ka需要反向映射到横梁倾角
-    s_status.vehicle_accel_feedforward_deg =
-        -s_motion_acceleration_gain * APP_ChassisControl_GetPlannedAccelCmps2();
+    s_status.velocity_feedback_deg = 0.0f;
+    s_status.vehicle_accel_feedforward_deg = 0.0f;
+    if (s_status.motion_compensation_enabled) { // 静态任务只屏蔽补偿，不清空已调好的Kv/Ka
+        s_status.velocity_feedback_deg =
+            -s_motion_velocity_gain * s_status.estimated_velocity_cm_s; // Kv抵消钢球惯性
+        // 实车安装方向与计划加速度坐标相反，正Ka反向映射到横梁倾角
+        s_status.vehicle_accel_feedforward_deg =
+            -s_motion_acceleration_gain * APP_ChassisControl_GetPlannedAccelCmps2();
+    }
     angle_raw += s_status.velocity_feedback_deg +
                  s_status.vehicle_accel_feedforward_deg;
 
@@ -675,7 +680,7 @@ void APP_BallControl_GetPid(PID_t *pid)
 /*
 *********************************************************************************************************
 *   函 数 名: APP_BallControl_SetMotionCompensation
-*   功能说明: 设置移动控球附加速度反馈和车辆加速度前馈增益
+*   功能说明: 保存移动控球Kv/Ka，补偿关闭时仍保留新值供下次启用
 *   形    参: velocity_gain - Kv；acceleration_gain - Ka
 *   返 回 值: 无
 *********************************************************************************************************
@@ -688,6 +693,21 @@ void APP_BallControl_SetMotionCompensation(float velocity_gain,
     s_status.motion_velocity_gain = velocity_gain;         // 同步Kv状态，供串口独立调参和回传
     s_status.motion_acceleration_gain = acceleration_gain; // 同步Ka状态，供串口独立调参和回传
     s_status.velocity_feedback_deg = 0.0f;
+    s_status.vehicle_accel_feedforward_deg = 0.0f;
+}
+
+/*
+*********************************************************************************************************
+*   函 数 名: APP_BallControl_SetMotionCompensationEnabled
+*   功能说明: 切换Kv/Ka补偿输出，不改变已保存的增益和位置PID
+*   形    参: enable - true启用，false屏蔽附加速度反馈及计划加速度前馈
+*   返 回 值: 无
+*********************************************************************************************************
+*/
+void APP_BallControl_SetMotionCompensationEnabled(bool enable)
+{
+    s_status.motion_compensation_enabled = enable;
+    s_status.velocity_feedback_deg = 0.0f;         // 模式切换后清除上一帧补偿角，新视觉帧重新计算
     s_status.vehicle_accel_feedforward_deg = 0.0f;
 }
 

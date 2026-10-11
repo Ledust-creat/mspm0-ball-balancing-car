@@ -1,5 +1,5 @@
 ## Example Summary
-# MSPM0G3507 车载钢球平衡控制系统
+# MSPM0G3507 车载钢球平衡控制
 Toggles three GPIO pins using HW toggle register.
 
 ## Peripherals & Pin Assignments

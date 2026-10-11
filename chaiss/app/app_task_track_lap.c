@@ -16,7 +16,7 @@
 #define APP_TRACK_LAP_FINISH_IGNORE_MS         (5000U)    /* 发车后忽略起点黑线时间，单位ms */
 #define APP_TRACK_LAP_FINISH_BLACK_COUNT_MIN   (3U)       /* 第二问沿用原终点阈值，避免普通弯道误判停车 */
 #define APP_TRACK_LAP_FINISH_CONFIRM_MS        (10U)      /* 低速接近时仅确认一个控制周期，减少停车距离 */
-#define APP_TRACK_LAP_CORNER_COUNT              (3U)       /* 正方形路线需要通过的弯道数量 */
+#define APP_TRACK_LAP_CORNER_COUNT              (3U)       /* 减速规划使用的弯道计数上限，不限制停车 */
 #define APP_TRACK_LAP_CORNER_ENTER_ERROR        (3.0f)     /* 判定进入弯道的误差绝对值 */
 #define APP_TRACK_LAP_CORNER_EXIT_ERROR         (1.5f)     /* 判定回到中心的误差绝对值 */
 #define APP_TRACK_LAP_CORNER_EXIT_CONFIRM_MS    (5U)     /* 出弯后中心状态连续确认时间 */
@@ -37,7 +37,6 @@ static uint8_t s_corner_count;                  /* 已确认通过的弯道数�
 static bool s_in_corner;                        /* true表示当前处于弯道 */
 static bool s_corner_exit_detecting;            /* true表示正在确认出弯回正 */
 static bool s_finish_slowdown;                  /* true表示进入第三个弯后已经开始降速 */
-static bool s_finish_approach;                  /* true表示第四个弯出弯后允许识别停止线 */
 static uint32_t s_slowdown_start_ms;            /* 均匀减速过程起始时刻 */
 
 /*
@@ -72,7 +71,6 @@ void APP_TaskTrackLap_Init(void)
     s_in_corner = false;
     s_corner_exit_detecting = false;
     s_finish_slowdown = false;
-    s_finish_approach = false;
     s_slowdown_start_ms = 0U;
 }
 
@@ -95,7 +93,6 @@ void APP_TaskTrackLap_Start(void)
     s_in_corner = false;
     s_corner_exit_detecting = false;
     s_finish_slowdown = false;
-    s_finish_approach = false;
     s_slowdown_start_ms = 0U;
 
 
@@ -171,20 +168,14 @@ void APP_TaskTrackLap_Task(uint32_t now_ms)
                 if (s_corner_count < APP_TRACK_LAP_CORNER_COUNT) {
                     s_corner_count++;
                 }
-
-                if ((s_corner_count >= APP_TRACK_LAP_CORNER_COUNT) &&
-                    !s_finish_approach) {
-                    s_finish_approach = true; // 第四个弯完成出弯后，才开放停止线识别
-                }
             }
         } else {
             s_corner_exit_detecting = false; // 尚未稳定回中，重新等待连续中心状态
         }
     }
 
-    // 起点屏蔽结束且最后弯道已通过后，才允许识别停止线
-    if (!s_finish_approach ||
-        ((uint32_t)(now_ms - s_start_tick_ms) < APP_TRACK_LAP_FINISH_IGNORE_MS)) {
+    // 起点屏蔽结束后独立确认停车线；弯道计数仅用于提前减速，漏计不能阻止停车
+    if ((uint32_t)(now_ms - s_start_tick_ms) < APP_TRACK_LAP_FINISH_IGNORE_MS) {
         s_finish_detecting = false;
         return;
     }
@@ -223,7 +214,6 @@ void APP_TaskTrackLap_Stop(void)
     s_in_corner = false;
     s_corner_exit_detecting = false;
     s_finish_slowdown = false;
-    s_finish_approach = false;
     s_slowdown_start_ms = 0U;
 }
 

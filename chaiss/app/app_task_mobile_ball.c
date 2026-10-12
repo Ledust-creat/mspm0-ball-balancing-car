@@ -172,6 +172,7 @@ void APP_TaskMobileBall_Start(APP_MobileMode_t mode, float target_position_cm)
     APP_BallControl_SetPid(APP_AB_BALL_PID_KP,
                            APP_AB_BALL_PID_KI,
                            APP_AB_BALL_PID_KD); // 移动任务启动时加载独立位置环参数
+    APP_BallControl_SetMotionCompensationEnabled(true); // 恢复已保存的Kv/Ka，不覆盖蓝牙调参值
     APP_BallControl_SetMotionEstimator(APP_BALL_SPEED_WINDOW_FRAME,
                                        APP_BALL_SPEED_FILTER_ALPHA); // 第四问使用10帧窗口速度估计
     APP_ChassisControl_Stop();                         // 启动状态机前保证底盘静止

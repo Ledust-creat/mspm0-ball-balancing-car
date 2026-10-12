@@ -310,7 +310,7 @@ void APP_TaskStaticBall_Start(void)
     APP_BallControl_SetPid(APP_STATIC_BALL_PID_KP,
                            APP_STATIC_BALL_PID_KI,
                            APP_STATIC_BALL_PID_KD); // 每次启动第三问都恢复本任务已调好的专用PID
-    APP_BallControl_SetMotionCompensation(0.0f, 0.0f); // 第三问静态控球不使用移动速度反馈和车辆前馈
+    APP_BallControl_SetMotionCompensationEnabled(false); // 静态任务仅屏蔽Kv/Ka，保留移动任务调参值
     APP_BallControl_SetMotionEstimator(APP_STATIC_BALL_SPEED_WINDOW_FRAME,
                                        APP_STATIC_BALL_SPEED_FILTER_ALPHA); // 保持第三问已调好的速度估计动态
     APP_BallControl_SetServoControlOffset(0); // 每次新任务从现场校准水平零点开始
@@ -443,6 +443,7 @@ void APP_TaskStaticBall_Stop(void)
 {
     APP_BallControl_SetServoControlOffset(0); // 手动停止时恢复现场校准水平零点
     APP_BallControl_SetMode(APP_BALL_MODE_DISABLE);
+    APP_BallControl_SetMotionCompensationEnabled(true); // 已关闭控球，退出静态任务后恢复补偿可用状态
     s_state = APP_STATIC_BALL_IDLE;
     s_hold_timing = false;
 }

@@ -141,4 +141,4 @@ UART0 RX 接收固定 8 字节帧：
 
 [工程复盘与架构](chaiss/PROJECT_RETROSPECTIVE_AND_ARCHITECTURE.md)记录现有结构与改进方向；[AGENTS.md](chaiss/AGENTS.md)记录开发约定。
 
-尚未添加 LICENSE。正式公开前需明确自有代码许可，并保留 TI SDK、CMSIS 等第三方组件原有许可和版权声明。完整 TI SDK 未打包进本仓库。
+本仓库原创代码与项目资料采用 [MIT License](LICENSE)。TI SDK、CMSIS 及其他第三方文件仍按各自许可使用，原有版权声明不受本许可证替代；完整 TI SDK 未打包进本仓库。
